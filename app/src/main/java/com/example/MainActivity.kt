@@ -20,7 +20,9 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -29,6 +31,7 @@ import com.example.ui.CapsuleViewModel
 import com.example.ui.components.AppDetailSheet
 import com.example.ui.components.CapsuleHeader
 import com.example.ui.components.CapsuleNavigationBar
+import com.example.ui.components.FloatingAssistantDialog
 import com.example.ui.components.PrivacyOpsDialog
 import com.example.ui.screens.CapsuleScreen
 import com.example.ui.screens.GlacierScreen
@@ -73,6 +76,7 @@ fun CapsuleProApp(viewModel: CapsuleViewModel) {
     val toastMessage by viewModel.toastMessage.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
+    var showFloatingDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(toastMessage) {
         toastMessage?.let { msg ->
@@ -93,7 +97,8 @@ fun CapsuleProApp(viewModel: CapsuleViewModel) {
                 onSearchQueryChange = { viewModel.updateSearchQuery(it) },
                 totalCloned = capsuleApps.size,
                 totalFrozen = frozenCount,
-                savedRamMb = savedRamTotalMb
+                savedRamMb = savedRamTotalMb,
+                onOpenFloatingAssistant = { showFloatingDialog = true }
             )
         },
         bottomBar = {
@@ -215,6 +220,13 @@ fun CapsuleProApp(viewModel: CapsuleViewModel) {
                     isolatedStorage = isolatedStorage
                 )
             }
+        )
+    }
+
+    // Floating Assistant Dialog
+    if (showFloatingDialog) {
+        FloatingAssistantDialog(
+            onDismiss = { showFloatingDialog = false }
         )
     }
 }

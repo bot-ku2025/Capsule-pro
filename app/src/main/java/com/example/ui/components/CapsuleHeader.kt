@@ -52,6 +52,8 @@ import com.example.ui.theme.DarkBorder
 import com.example.ui.theme.DarkSurfaceCard
 import com.example.ui.theme.DarkSurfaceVariant
 import com.example.ui.theme.GlacierBlue
+import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.filled.ElectricBolt
 import com.example.ui.theme.SandboxGreen
 import com.example.ui.theme.TextPrimaryDark
 import com.example.ui.theme.TextSecondaryDark
@@ -63,6 +65,7 @@ fun CapsuleHeader(
     totalCloned: Int,
     totalFrozen: Int,
     savedRamMb: Int,
+    onOpenFloatingAssistant: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
@@ -140,30 +143,32 @@ fun CapsuleHeader(
                 }
             }
 
-            // Live Sandbox Pulse Badge
-            Surface(
-                shape = RoundedCornerShape(20.dp),
-                color = CapsuleTealContainer.copy(alpha = 0.6f),
-                border = androidx.compose.foundation.BorderStroke(1.dp, CapsuleCyan.copy(alpha = 0.5f))
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // Quick Floating ID Button
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = CapsuleTealContainer,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, CapsuleCyan),
+                    modifier = Modifier.clickable { onOpenFloatingAssistant() }
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .scale(pulseScale)
-                            .clip(CircleShape)
-                            .background(SandboxGreen)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "ISOLATED",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = CapsuleCyanLight
-                    )
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ElectricBolt,
+                            contentDescription = "Floating Assistant",
+                            tint = CapsuleCyan,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Quick ID",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = CapsuleCyanLight
+                        )
+                    }
                 }
             }
         }
