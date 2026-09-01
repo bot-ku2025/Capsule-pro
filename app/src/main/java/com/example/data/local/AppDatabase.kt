@@ -7,10 +7,19 @@ import androidx.room.RoomDatabase
 import com.example.data.local.dao.CapsuleDao
 import com.example.data.local.entity.CapsuleAppEntity
 import com.example.data.local.entity.CapsuleLogEntity
+import com.example.data.local.entity.CapsuleProfileEntity
+import com.example.data.local.entity.CapsuleSnapshotEntity
+import com.example.data.local.entity.IdentityConfigEntity
 
 @Database(
-    entities = [CapsuleAppEntity::class, CapsuleLogEntity::class],
-    version = 1,
+    entities = [
+        CapsuleAppEntity::class,
+        CapsuleLogEntity::class,
+        CapsuleProfileEntity::class,
+        CapsuleSnapshotEntity::class,
+        IdentityConfigEntity::class
+    ],
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

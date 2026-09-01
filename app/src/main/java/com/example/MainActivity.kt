@@ -32,9 +32,14 @@ import com.example.ui.components.AppDetailSheet
 import com.example.ui.components.CapsuleHeader
 import com.example.ui.components.CapsuleNavigationBar
 import com.example.ui.components.FloatingAssistantDialog
+import com.example.ui.components.IpFreshDialog
+import com.example.ui.components.PlayEngineSheet
 import com.example.ui.components.PrivacyOpsDialog
+import com.example.ui.components.ProfileBackupDialog
+import com.example.ui.components.UniversalMigrationDialog
 import com.example.ui.screens.CapsuleScreen
 import com.example.ui.screens.GlacierScreen
+import com.example.ui.screens.IdentityScreen
 import com.example.ui.screens.MainlandScreen
 import com.example.ui.screens.SettingsLogsScreen
 import com.example.ui.screens.ShuttleAdbScreen
@@ -48,6 +53,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        com.example.util.LanguageManager.init(this)
 
         setContent {
             MyApplicationTheme {
@@ -71,12 +77,31 @@ fun CapsuleProApp(viewModel: CapsuleViewModel) {
     val savedRamTotalMb by viewModel.savedRamTotalMb.collectAsStateWithLifecycle()
     val screenOffAutoFreeze by viewModel.screenOffAutoFreeze.collectAsStateWithLifecycle()
     val logs by viewModel.logs.collectAsStateWithLifecycle()
+    val rootStatus by viewModel.rootStatus.collectAsStateWithLifecycle()
+    val workingEngineMode by viewModel.workingEngineMode.collectAsStateWithLifecycle()
     val selectedAppForDetail by viewModel.selectedAppForDetail.collectAsStateWithLifecycle()
     val selectedAppForOps by viewModel.selectedAppForOps.collectAsStateWithLifecycle()
     val toastMessage by viewModel.toastMessage.collectAsStateWithLifecycle()
 
+    // Profiles & Snapshots
+    val allProfiles by viewModel.allProfiles.collectAsStateWithLifecycle()
+    val currentProfile by viewModel.currentProfile.collectAsStateWithLifecycle()
+    val currentProfileSnapshots by viewModel.currentProfileSnapshots.collectAsStateWithLifecycle()
+    val allCapsuleAppEntities by viewModel.allCapsuleAppEntities.collectAsStateWithLifecycle()
+    val allSnapshots by viewModel.allSnapshots.collectAsStateWithLifecycle()
+    val allIdentities by viewModel.allIdentities.collectAsStateWithLifecycle()
+
+    // Identity & IP Rotation
+    val identityConfig by viewModel.identityConfig.collectAsStateWithLifecycle()
+    val lastIpRotationResult by viewModel.lastIpRotationResult.collectAsStateWithLifecycle()
+    val isExecutingAction by viewModel.isExecutingAction.collectAsStateWithLifecycle()
+    val actionStatusMessage by viewModel.actionStatusMessage.collectAsStateWithLifecycle()
+
     val snackbarHostState = remember { SnackbarHostState() }
     var showFloatingDialog by remember { mutableStateOf(false) }
+    var showProfileBackupDialog by remember { mutableStateOf(false) }
+    var showPlayEngineSheet by remember { mutableStateOf(false) }
+    var showUniversalMigrationDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(toastMessage) {
         toastMessage?.let { msg ->
@@ -98,7 +123,11 @@ fun CapsuleProApp(viewModel: CapsuleViewModel) {
                 totalCloned = capsuleApps.size,
                 totalFrozen = frozenCount,
                 savedRamMb = savedRamTotalMb,
-                onOpenFloatingAssistant = { showFloatingDialog = true }
+                currentProfile = currentProfile,
+                onOpenProfileDialog = { showProfileBackupDialog = true },
+                onOpenFloatingAssistant = { showFloatingDialog = true },
+                onOpenPlayEngine = { showPlayEngineSheet = true },
+                onOpenUniversalMigration = { showUniversalMigrationDialog = true }
             )
         },
         bottomBar = {
@@ -141,7 +170,26 @@ fun CapsuleProApp(viewModel: CapsuleViewModel) {
                         onOpsClick = { viewModel.selectAppForOps(it) },
                         onFreezeAll = { viewModel.freezeAllInactive() },
                         onDefrostAll = { viewModel.defrostAll() },
+                        onOpenTools = { showFloatingDialog = true },
                         onNavigateToMainland = { viewModel.selectTab(CapsuleTab.MAINLAND) }
+                    )
+                }
+
+                CapsuleTab.IDENTITY -> {
+                    IdentityScreen(
+                        currentProfile = currentProfile,
+                        allProfiles = allProfiles,
+                        identityConfig = identityConfig,
+                        rootStatus = rootStatus,
+                        isExecutingAction = isExecutingAction,
+                        actionStatusMessage = actionStatusMessage,
+                        onSelectProfile = { viewModel.switchProfile(it) },
+                        onRandomizeIdentity = { viewModel.randomizeCurrentProfileIdentity() },
+                        onApplyPreset = { preset -> viewModel.applyDevicePreset(preset) },
+                        onUpdateField = { updated -> viewModel.updateIdentityConfig(updated) },
+                        onSynchronizeSystem = { viewModel.synchronizeSystem() },
+                        onRestartProfileWithIpCycle = { viewModel.restartProfileWithIpCycle() },
+                        onRequestRootAccess = { viewModel.requestRootAccess() }
                     )
                 }
 
@@ -162,6 +210,12 @@ fun CapsuleProApp(viewModel: CapsuleViewModel) {
 
                 CapsuleTab.SHUTTLE_ADB -> {
                     ShuttleAdbScreen(
+                        rootStatus = rootStatus,
+                        workingEngineMode = workingEngineMode,
+                        onRequestRoot = { viewModel.requestRootAccess() },
+                        onSetupWorkProfileRoot = { viewModel.setupWorkProfileViaRoot() },
+                        onTestRoot = { viewModel.testRootCommand() },
+                        onSelectEngineMode = { viewModel.setEngineMode(it) },
                         onShowToast = { viewModel.showToast(it) }
                     )
                 }
@@ -169,12 +223,62 @@ fun CapsuleProApp(viewModel: CapsuleViewModel) {
                 CapsuleTab.SETTINGS_LOGS -> {
                     SettingsLogsScreen(
                         logs = logs,
+                        workingEngineMode = workingEngineMode,
+                        rootStatus = rootStatus,
+                        onSelectEngineMode = { viewModel.setEngineMode(it) },
+                        onOpenProfileBackup = { showProfileBackupDialog = true },
                         onClearLogs = { viewModel.clearLogs() },
                         onDestroyCapsule = { viewModel.destroyCapsule() }
                     )
                 }
             }
         }
+    }
+
+    // Profile & Snapshot Backup Dialog
+    if (showProfileBackupDialog) {
+        ProfileBackupDialog(
+            viewModel = viewModel,
+            profiles = allProfiles,
+            currentProfile = currentProfile,
+            snapshots = currentProfileSnapshots,
+            onDismiss = { showProfileBackupDialog = false }
+        )
+    }
+
+    // High-Contrast Bright Neon Green IP Fresh Dialog
+    lastIpRotationResult?.let { result ->
+        IpFreshDialog(
+            result = result,
+            onDismiss = { viewModel.dismissIpFreshDialog() }
+        )
+    }
+
+    // Play Backend Engine Bottom Sheet
+    if (showPlayEngineSheet) {
+        PlayEngineSheet(
+            currentProfile = currentProfile,
+            onAppInstalled = { app ->
+                viewModel.handlePlayAppInstalled(app)
+            },
+            onDismiss = { showPlayEngineSheet = false }
+        )
+    }
+
+    // Universal Migration Dialog (.capsule)
+    if (showUniversalMigrationDialog) {
+        UniversalMigrationDialog(
+            profiles = allProfiles,
+            capsuleApps = allCapsuleAppEntities,
+            snapshots = allSnapshots,
+            identities = allIdentities,
+            rootStatus = rootStatus,
+            onExecuteRestore = { parsedData, isFullRoot ->
+                viewModel.restoreUniversalPackage(parsedData, isFullRoot)
+            },
+            onRequestRoot = { viewModel.requestRootAccess() },
+            onDismiss = { showUniversalMigrationDialog = false }
+        )
     }
 
     // Detail Bottom Sheet

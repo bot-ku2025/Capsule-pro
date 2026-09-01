@@ -8,7 +8,6 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.widget.Toast
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -26,6 +25,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AirplanemodeActive
 import androidx.compose.material.icons.filled.Casino
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -33,7 +33,6 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
@@ -61,7 +60,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -75,12 +73,13 @@ import com.example.ui.theme.CapsuleTealContainer
 import com.example.ui.theme.DarkBorder
 import com.example.ui.theme.DarkSurface
 import com.example.ui.theme.DarkSurfaceCard
-import com.example.ui.theme.GlacierBlue
 import com.example.ui.theme.SandboxGreen
 import com.example.ui.theme.TextPrimaryDark
 import com.example.ui.theme.TextSecondaryDark
 import com.example.ui.theme.TextTertiaryDark
+import com.example.util.AirplaneIpChanger
 import com.example.util.IndonesianNameGenerator
+import com.example.util.LanguageManager
 
 @Composable
 fun FloatingAssistantDialog(
@@ -98,6 +97,10 @@ fun FloatingAssistantDialog(
     var showPassword by remember { mutableStateOf(true) }
     var copiedPassFeedback by remember { mutableStateOf(false) }
 
+    // State for Airplane IP changer
+    var isIpCycling by remember { mutableStateOf(false) }
+    var ipCycleStatus by remember { mutableStateOf(LanguageManager.getString("airplane_ip_desc")) }
+
     // State for Floating Overlay Service
     var isOverlayRunning by remember { mutableStateOf(FloatingAssistantService.isRunning) }
 
@@ -105,7 +108,7 @@ fun FloatingAssistantDialog(
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         val clip = ClipData.newPlainText(label, value)
         clipboard.setPrimaryClip(clip)
-        Toast.makeText(context, "✓ $label tersalin: $value", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, "✓ $label ${LanguageManager.getString("copied")}: $value", Toast.LENGTH_SHORT).show()
     }
 
     Dialog(onDismissRequest = onDismiss) {
@@ -151,13 +154,13 @@ fun FloatingAssistantDialog(
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
-                                text = "Floating ID Assistant",
-                                fontSize = 17.sp,
+                                text = LanguageManager.getString("floating_title"),
+                                fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = TextPrimaryDark
                             )
                             Text(
-                                text = "Nama Indo 2 Kata & Password Cepat",
+                                text = LanguageManager.getString("floating_sub"),
                                 fontSize = 11.sp,
                                 color = TextSecondaryDark
                             )
@@ -176,13 +179,15 @@ fun FloatingAssistantDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
-                HorizontalDivider(color = DarkBorder)
                 Spacer(modifier = Modifier.height(14.dp))
+                HorizontalDivider(color = DarkBorder)
+                Spacer(modifier = Modifier.height(12.dp))
 
-                // SECTION 1: NAMA INDONESIA (2 KATA)
+                // ==========================================
+                // SECTION ATAS: NAMA INDONESIA (2 KATA)
+                // ==========================================
                 Text(
-                    text = "NAMA INDONESIA (2 KATA)",
+                    text = LanguageManager.getString("sec_name_indo"),
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     color = CapsuleCyanLight
@@ -199,25 +204,22 @@ fun FloatingAssistantDialog(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.Person,
-                                contentDescription = null,
-                                tint = CapsuleCyan,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Text(
-                                text = currentName,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = TextPrimaryDark
-                            )
-                        }
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = null,
+                            tint = CapsuleCyan,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = currentName,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimaryDark
+                        )
                     }
                 }
 
@@ -227,7 +229,6 @@ fun FloatingAssistantDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // Acak Nama Button
                     OutlinedButton(
                         onClick = {
                             currentName = IndonesianNameGenerator.generateTwoWordName()
@@ -247,10 +248,9 @@ fun FloatingAssistantDialog(
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Acak Nama", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        Text(LanguageManager.getString("btn_random_name"), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                     }
 
-                    // Salin Nama Button
                     Button(
                         onClick = {
                             copyToClipboard("Nama", currentName)
@@ -270,20 +270,20 @@ fun FloatingAssistantDialog(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = if (copiedNameFeedback) "Tersalin!" else "Salin Nama",
-                            fontSize = 12.sp,
+                            text = if (copiedNameFeedback) LanguageManager.getString("copied") else LanguageManager.getString("btn_copy_name"),
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.Bold
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(18.dp))
-                HorizontalDivider(color = DarkBorder)
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // SECTION 2: PASSWORD (BISA DIUBAH & TERSIMPAN)
+                // ==========================================
+                // SECTION ATAS (PART 2): PASSWORD
+                // ==========================================
                 Text(
-                    text = "PASSWORD (BISA DIUBAH / SIMPAN OTOMATIS)",
+                    text = LanguageManager.getString("sec_password"),
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFFFFD54F)
@@ -335,7 +335,6 @@ fun FloatingAssistantDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // Acak Password Baru
                     OutlinedButton(
                         onClick = {
                             currentPassword = IndonesianNameGenerator.generateRandomPassword(10)
@@ -356,10 +355,9 @@ fun FloatingAssistantDialog(
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Acak Kuat", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        Text(LanguageManager.getString("btn_random_pass"), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                     }
 
-                    // Salin Password Button
                     Button(
                         onClick = {
                             IndonesianNameGenerator.saveCustomPassword(context, currentPassword)
@@ -380,18 +378,121 @@ fun FloatingAssistantDialog(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = if (copiedPassFeedback) "Tersalin!" else "Salin Password",
-                            fontSize = 12.sp,
+                            text = if (copiedPassFeedback) LanguageManager.getString("copied") else LanguageManager.getString("btn_copy_pass"),
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.Bold
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(18.dp))
+                Spacer(modifier = Modifier.height(16.dp))
                 HorizontalDivider(color = DarkBorder)
                 Spacer(modifier = Modifier.height(14.dp))
 
+                // ==========================================
+                // SECTION BAWAH: GANTI IP MODE PESAWAT
+                // (POSISI TETAP MENYATU ATAS-BAWAH)
+                // ==========================================
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color(0xFF0E1A2B),
+                    border = BorderStroke(1.dp, Color(0xFF0288D1).copy(alpha = 0.6f))
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.AirplanemodeActive,
+                                    contentDescription = null,
+                                    tint = Color(0xFF4FC3F7),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = LanguageManager.getString("sec_airplane_ip"),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF4FC3F7)
+                                )
+                            }
+
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = Color(0xFF00363A)
+                            ) {
+                                Text(
+                                    text = "3 Detik Jeda",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = CapsuleCyan,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        Text(
+                            text = ipCycleStatus,
+                            fontSize = 10.sp,
+                            color = TextSecondaryDark,
+                            lineHeight = 13.sp
+                        )
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        Button(
+                            onClick = {
+                                if (isIpCycling) return@Button
+                                isIpCycling = true
+                                ipCycleStatus = "Sedang mengeksekusi Mode Pesawat ON (Jeda 3s)..."
+                                AirplaneIpChanger.performAirplaneCycle(
+                                    context = context,
+                                    onProgress = { step, sec ->
+                                        ipCycleStatus = if (sec > 0) "$step ($sec detik)" else step
+                                    },
+                                    onComplete = {
+                                        isIpCycling = false
+                                        ipCycleStatus = "✓ Mode Pesawat telah OFF kembali. IP Seluler baru aktif!"
+                                    }
+                                )
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(38.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isIpCycling) Color(0xFF455A64) else Color(0xFF0288D1),
+                                contentColor = Color.White
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AirplanemodeActive,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = if (isIpCycling) "Memproses Pergantian IP..." else LanguageManager.getString("btn_trigger_ip"),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider(color = DarkBorder)
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // ==========================================
                 // SECTION 3: SYSTEM FLOATING OVERLAY TOGGLE
+                // ==========================================
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(14.dp),
@@ -414,7 +515,7 @@ fun FloatingAssistantDialog(
                             Column(modifier = Modifier.weight(1f)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
-                                        text = "Bubble Melayang (Floating)",
+                                        text = LanguageManager.getString("sec_floating_bubble"),
                                         fontSize = 13.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = TextPrimaryDark
@@ -430,7 +531,7 @@ fun FloatingAssistantDialog(
                                     }
                                 }
                                 Text(
-                                    text = if (isOverlayRunning) "Layanan bubble aktif di atas layar HP" else "Tampilkan bubble di atas aplikasi lain",
+                                    text = if (isOverlayRunning) LanguageManager.getString("bubble_active_desc") else LanguageManager.getString("bubble_inactive_desc"),
                                     fontSize = 11.sp,
                                     color = if (isOverlayRunning) SandboxGreen else TextSecondaryDark
                                 )
@@ -440,7 +541,6 @@ fun FloatingAssistantDialog(
                                 checked = isOverlayRunning,
                                 onCheckedChange = { enable ->
                                     if (enable) {
-                                        // Check overlay permission
                                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(context)) {
                                             val intent = Intent(
                                                 Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
@@ -479,15 +579,6 @@ fun FloatingAssistantDialog(
                                     uncheckedThumbColor = TextTertiaryDark,
                                     uncheckedTrackColor = DarkBorder
                                 )
-                            )
-                        }
-
-                        if (!isOverlayRunning && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(context)) {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = "💡 Ketuk switch untuk membuka pengaturan izin overlay Android.",
-                                fontSize = 10.sp,
-                                color = TextTertiaryDark
                             )
                         }
                     }

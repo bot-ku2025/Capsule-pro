@@ -8,13 +8,13 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AcUnit
 import androidx.compose.material.icons.filled.Apps
-import androidx.compose.material.icons.filled.LockClock
+import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.outlined.AcUnit
 import androidx.compose.material.icons.outlined.Apps
+import androidx.compose.material.icons.outlined.Fingerprint
 import androidx.compose.material.icons.outlined.Security
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Terminal
@@ -24,20 +24,20 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.ui.CapsuleTab
 import com.example.ui.theme.CapsuleCyan
-import com.example.ui.theme.CapsuleCyanDark
 import com.example.ui.theme.DarkCanvas
 import com.example.ui.theme.DarkSurface
-import com.example.ui.theme.DarkSurfaceVariant
 import com.example.ui.theme.GlacierBlue
-import com.example.ui.theme.TextPrimaryDark
 import com.example.ui.theme.TextSecondaryDark
+import com.example.util.LanguageManager
 
 @Composable
 fun CapsuleNavigationBar(
@@ -47,6 +47,8 @@ fun CapsuleNavigationBar(
     frozenCount: Int,
     modifier: Modifier = Modifier
 ) {
+    val currentLang by LanguageManager.currentLanguage.collectAsStateWithLifecycle()
+
     NavigationBar(
         modifier = modifier
             .background(DarkCanvas)
@@ -67,7 +69,7 @@ fun CapsuleNavigationBar(
             },
             label = {
                 Text(
-                    text = "Mainland",
+                    text = LanguageManager.getString("tab_mainland"),
                     fontSize = 11.sp,
                     fontWeight = if (currentTab == CapsuleTab.MAINLAND) FontWeight.Bold else FontWeight.Normal
                 )
@@ -81,7 +83,7 @@ fun CapsuleNavigationBar(
             )
         )
 
-        // Capsule (Island Sandbox) Tab
+        // Capsule (Sandbox) Tab
         NavigationBarItem(
             selected = currentTab == CapsuleTab.CAPSULE,
             onClick = { onTabSelected(CapsuleTab.CAPSULE) },
@@ -94,9 +96,36 @@ fun CapsuleNavigationBar(
             },
             label = {
                 Text(
-                    text = "Capsule ($clonedCount)",
+                    text = "${LanguageManager.getString("tab_capsule")} ($clonedCount)",
                     fontSize = 11.sp,
                     fontWeight = if (currentTab == CapsuleTab.CAPSULE) FontWeight.Bold else FontWeight.Normal
+                )
+            },
+            colors = NavigationBarItemDefaults.colors(
+                selectedIconColor = Color(0xFF090D16),
+                selectedTextColor = CapsuleCyan,
+                indicatorColor = CapsuleCyan,
+                unselectedIconColor = TextSecondaryDark,
+                unselectedTextColor = TextSecondaryDark
+            )
+        )
+
+        // Identity (Device Spoofing) Tab
+        NavigationBarItem(
+            selected = currentTab == CapsuleTab.IDENTITY,
+            onClick = { onTabSelected(CapsuleTab.IDENTITY) },
+            icon = {
+                Icon(
+                    imageVector = if (currentTab == CapsuleTab.IDENTITY) Icons.Filled.Fingerprint else Icons.Outlined.Fingerprint,
+                    contentDescription = "Identity",
+                    modifier = Modifier.size(22.dp)
+                )
+            },
+            label = {
+                Text(
+                    text = LanguageManager.getString("tab_identity"),
+                    fontSize = 11.sp,
+                    fontWeight = if (currentTab == CapsuleTab.IDENTITY) FontWeight.Bold else FontWeight.Normal
                 )
             },
             colors = NavigationBarItemDefaults.colors(
@@ -121,7 +150,7 @@ fun CapsuleNavigationBar(
             },
             label = {
                 Text(
-                    text = "Glacier ($frozenCount)",
+                    text = "${LanguageManager.getString("tab_glacier")} ($frozenCount)",
                     fontSize = 11.sp,
                     fontWeight = if (currentTab == CapsuleTab.GLACIER) FontWeight.Bold else FontWeight.Normal
                 )
@@ -148,7 +177,7 @@ fun CapsuleNavigationBar(
             },
             label = {
                 Text(
-                    text = "Bridge",
+                    text = LanguageManager.getString("tab_bridge"),
                     fontSize = 11.sp,
                     fontWeight = if (currentTab == CapsuleTab.SHUTTLE_ADB) FontWeight.Bold else FontWeight.Normal
                 )
@@ -175,7 +204,7 @@ fun CapsuleNavigationBar(
             },
             label = {
                 Text(
-                    text = "Pengaturan",
+                    text = LanguageManager.getString("tab_settings"),
                     fontSize = 11.sp,
                     fontWeight = if (currentTab == CapsuleTab.SETTINGS_LOGS) FontWeight.Bold else FontWeight.Normal
                 )

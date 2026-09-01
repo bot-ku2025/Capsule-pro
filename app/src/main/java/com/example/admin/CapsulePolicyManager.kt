@@ -37,12 +37,29 @@ object CapsulePolicyManager {
         return false
     }
 
+    fun createAddDeviceAdminIntent(context: Context): Intent {
+        return Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
+            putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, getAdminComponent(context))
+            putExtra(
+                DevicePolicyManager.EXTRA_ADD_EXPLANATION,
+                "Aktifkan Device Administrator untuk mengizinkan CapsulePro mengelola isolasi aplikasi dan sandboxing."
+            )
+        }
+    }
+
     fun createProvisioningIntent(context: Context): Intent {
         val intent = Intent(DevicePolicyManager.ACTION_PROVISION_MANAGED_PROFILE)
         intent.putExtra(
             DevicePolicyManager.EXTRA_PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME,
             getAdminComponent(context)
         )
+        intent.putExtra(
+            DevicePolicyManager.EXTRA_PROVISIONING_DEVICE_ADMIN_PACKAGE_NAME,
+            context.packageName
+        )
+        // Compatibility extras for modern Android
+        intent.putExtra("android.app.extra.PROVISIONING_LEAVE_ALL_SYSTEM_APPS_ENABLED", true)
+        intent.putExtra("android.app.extra.PROVISIONING_SKIP_ENCRYPTION", true)
         return intent
     }
 
@@ -68,5 +85,17 @@ object CapsulePolicyManager {
 
     fun getShizukuUnfreezeCommand(pkg: String): String {
         return "pm enable --user 0 $pkg"
+    }
+
+    fun getRootFreezeCommand(pkg: String): String {
+        return "su -c pm disable-user --user 0 $pkg && su -c am force-stop $pkg"
+    }
+
+    fun getRootUnfreezeCommand(pkg: String): String {
+        return "su -c pm enable --user 0 $pkg"
+    }
+
+    fun getRootCreateProfileCommand(packageName: String): String {
+        return "su -c pm create-user --profileOf 0 --managed \"Capsule Space\" && su -c dpm set-profile-owner --user 10 $packageName/.admin.CapsuleDeviceAdminReceiver"
     }
 }

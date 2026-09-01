@@ -7,18 +7,35 @@ import android.content.pm.ApplicationInfo
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Environment
 import android.provider.Settings
 import android.widget.Toast
 import com.example.data.local.AppDatabase
 import com.example.data.local.entity.CapsuleAppEntity
 import com.example.data.local.entity.CapsuleLogEntity
+import com.example.data.local.entity.CapsuleProfileEntity
+import com.example.data.local.entity.CapsuleSnapshotEntity
+import com.example.data.local.entity.IdentityConfigEntity
 import com.example.data.model.AppItem
+import com.example.util.DeviceIdentityGenerator
+import com.example.util.MigrationParsedData
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.util.Random
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.File
+import java.io.FileOutputStream
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.UUID
 
 class CapsuleRepository(private val context: Context) {
 
@@ -26,11 +43,127 @@ class CapsuleRepository(private val context: Context) {
     private val dao = db.capsuleDao()
     private val packageManager: PackageManager = context.packageManager
 
+    init {
+        // Run default profile setup if needed
+        CoroutineScope(Dispatchers.IO).launch {
+            ensureDefaultProfiles()
+        }
+    }
+
+    suspend fun ensureDefaultProfiles() = withContext(Dispatchers.IO) {
+        val current = dao.getCurrentProfile()
+        if (current == null) {
+            val defaultProfile = CapsuleProfileEntity(
+                profileId = "profile_1",
+                profileName = "Profil 1 (Utama)",
+                colorHex = 0xFF00E5FF, // Cyan
+                iconName = "person",
+                isCurrent = true,
+                autoSnapshotEnabled = true,
+                customNotes = "Profil isolasi default"
+            )
+            dao.insertProfile(defaultProfile)
+        }
+    }
+
+    // --- PROFILES ---
+    fun getAllProfilesFlow(): Flow<List<CapsuleProfileEntity>> = dao.getAllProfiles()
+
+    fun observeCurrentProfile(): Flow<CapsuleProfileEntity?> = dao.observeCurrentProfile()
+
+    suspend fun getCurrentProfile(): CapsuleProfileEntity {
+        return dao.getCurrentProfile() ?: run {
+            val fallback = CapsuleProfileEntity(
+                profileId = "profile_1",
+                profileName = "Profil 1 (Utama)",
+                colorHex = 0xFF00E5FF,
+                isCurrent = true
+            )
+            dao.insertProfile(fallback)
+            fallback
+        }
+    }
+
+    suspend fun createProfile(name: String, colorHex: Long): CapsuleProfileEntity = withContext(Dispatchers.IO) {
+        val profileId = "profile_" + UUID.randomUUID().toString().take(8)
+        val profile = CapsuleProfileEntity(
+            profileId = profileId,
+            profileName = name.ifBlank { "Profil Baru" },
+            colorHex = colorHex,
+            isCurrent = false,
+            autoSnapshotEnabled = true
+        )
+        dao.insertProfile(profile)
+        dao.insertLog(
+            CapsuleLogEntity(
+                packageName = "PROFILE",
+                appName = profile.profileName,
+                action = "PROFILE_CREATED",
+                details = "Profil isolasi baru '${profile.profileName}' berhasil dibuat."
+            )
+        )
+        profile
+    }
+
+    suspend fun switchProfile(targetProfileId: String) = withContext(Dispatchers.IO) {
+        val current = dao.getCurrentProfile()
+        if (current != null && current.profileId != targetProfileId) {
+            // 1. Auto-Snapshot of current profile before switching out
+            if (current.autoSnapshotEnabled) {
+                createAutoSnapshot(current.profileId, current.profileName, "Auto-Snapshot sebelum beralih ke profil lain")
+            }
+        }
+        dao.switchActiveProfile(targetProfileId)
+        val newProfile = dao.getProfileById(targetProfileId)
+        dao.insertLog(
+            CapsuleLogEntity(
+                packageName = "PROFILE",
+                appName = newProfile?.profileName ?: targetProfileId,
+                action = "PROFILE_SWITCHED",
+                details = "Beralih aktif ke profil '${newProfile?.profileName}'."
+            )
+        )
+    }
+
+    suspend fun updateProfile(profileId: String, newName: String, colorHex: Long) = withContext(Dispatchers.IO) {
+        val existing = dao.getProfileById(profileId) ?: return@withContext
+        val updated = existing.copy(
+            profileName = newName.ifBlank { existing.profileName },
+            colorHex = colorHex,
+            lastActiveTimestamp = System.currentTimeMillis()
+        )
+        dao.updateProfile(updated)
+    }
+
+    suspend fun deleteProfile(profileId: String) = withContext(Dispatchers.IO) {
+        val profile = dao.getProfileById(profileId)
+        dao.clearAppsForProfile(profileId)
+        dao.clearSnapshotsForProfile(profileId)
+        dao.deleteProfile(profileId)
+
+        // If the deleted profile was current, fallback to another or default
+        val current = dao.getCurrentProfile()
+        if (current == null) {
+            ensureDefaultProfiles()
+        }
+
+        dao.insertLog(
+            CapsuleLogEntity(
+                packageName = "PROFILE",
+                appName = profile?.profileName ?: profileId,
+                action = "PROFILE_DELETED",
+                details = "Profil '${profile?.profileName}' dan seluruh data kloningnya dihapus."
+            )
+        )
+    }
+
+    // --- APPS & SANDBOXING ---
+
     /**
-     * Scans installed applications on the device and merges their state with Capsule DB.
+     * Returns installed applications on Mainland mapped against current profile apps.
      */
-    fun getInstalledAppsFlow(): Flow<List<AppItem>> {
-        return dao.getAllCapsuleApps().combine(querySystemPackagesFlow()) { capsuleEntities, installedPkgs ->
+    fun getInstalledAppsFlow(profileId: String): Flow<List<AppItem>> {
+        return dao.getAllCapsuleAppsByProfile(profileId).combine(querySystemPackagesFlow()) { capsuleEntities, installedPkgs ->
             val entityMap = capsuleEntities.associateBy { it.packageName }
             installedPkgs.map { pkg ->
                 val entity = entityMap[pkg.packageName]
@@ -59,10 +192,10 @@ class CapsuleRepository(private val context: Context) {
     }
 
     /**
-     * Returns only the apps that are cloned/isolated inside the Capsule Sandbox.
+     * Returns only the apps cloned/isolated inside the active Capsule profile.
      */
-    fun getCapsuleAppsFlow(): Flow<List<AppItem>> {
-        return dao.getClonedCapsuleApps().combine(querySystemPackagesFlow()) { clonedEntities, installedPkgs ->
+    fun getCapsuleAppsFlow(profileId: String): Flow<List<AppItem>> {
+        return dao.getClonedCapsuleAppsByProfile(profileId).combine(querySystemPackagesFlow()) { clonedEntities, installedPkgs ->
             val installedMap = installedPkgs.associateBy { it.packageName }
             clonedEntities.map { entity ->
                 val installed = installedMap[entity.packageName]
@@ -93,7 +226,7 @@ class CapsuleRepository(private val context: Context) {
         }.flowOn(Dispatchers.IO)
     }
 
-    private fun querySystemPackagesFlow(): Flow<List<AppItem>> = kotlinx.coroutines.flow.flow {
+    private fun querySystemPackagesFlow(): Flow<List<AppItem>> = flow {
         val apps = querySystemPackages()
         emit(apps)
     }
@@ -113,7 +246,6 @@ class CapsuleRepository(private val context: Context) {
         val result = mutableListOf<AppItem>()
         for (pkg in packages) {
             val appInfo = pkg.applicationInfo ?: continue
-            // Skip CapsulePro itself from mainland listing to avoid recursion
             if (pkg.packageName == context.packageName) continue
 
             val appName = try {
@@ -146,7 +278,6 @@ class CapsuleRepository(private val context: Context) {
             )
         }
 
-        // If in test or restricted container where packages list is minimal, provide common sample apps so user can test all features
         if (result.size < 5) {
             result.addAll(getDemoFallbackApps())
         }
@@ -158,43 +289,43 @@ class CapsuleRepository(private val context: Context) {
         return listOf(
             AppItem(
                 packageName = "com.whatsapp",
-                appName = "WhatsApp Messenger",
-                versionName = "2.24.18.7",
+                appName = "WhatsApp",
+                versionName = "2.24.18",
                 isSystem = false,
-                permissions = listOf("android.permission.CAMERA", "android.permission.READ_CONTACTS", "android.permission.ACCESS_FINE_LOCATION"),
-                estimatedRamMb = 120
-            ),
-            AppItem(
-                packageName = "com.google.android.youtube",
-                appName = "YouTube",
-                versionName = "19.34.42",
-                isSystem = true,
-                permissions = listOf("android.permission.INTERNET", "android.permission.RECORD_AUDIO"),
+                permissions = listOf("android.permission.CAMERA", "android.permission.READ_CONTACTS"),
                 estimatedRamMb = 95
-            ),
-            AppItem(
-                packageName = "com.instagram.android",
-                appName = "Instagram",
-                versionName = "345.0.0",
-                isSystem = false,
-                permissions = listOf("android.permission.CAMERA", "android.permission.READ_MEDIA_IMAGES", "android.permission.ACCESS_FINE_LOCATION"),
-                estimatedRamMb = 160
             ),
             AppItem(
                 packageName = "org.telegram.messenger",
                 appName = "Telegram",
                 versionName = "10.14.5",
                 isSystem = false,
-                permissions = listOf("android.permission.CAMERA", "android.permission.READ_CONTACTS", "android.permission.RECORD_AUDIO"),
+                permissions = listOf("android.permission.READ_EXTERNAL_STORAGE", "android.permission.RECORD_AUDIO"),
+                estimatedRamMb = 110
+            ),
+            AppItem(
+                packageName = "com.zhiliaoapp.musically",
+                appName = "TikTok",
+                versionName = "36.2.4",
+                isSystem = false,
+                permissions = listOf("android.permission.CAMERA", "android.permission.ACCESS_FINE_LOCATION"),
+                estimatedRamMb = 160
+            ),
+            AppItem(
+                packageName = "id.dana",
+                appName = "DANA Dompet Digital",
+                versionName = "2.55.0",
+                isSystem = false,
+                permissions = listOf("android.permission.CAMERA", "android.permission.READ_PHONE_STATE"),
                 estimatedRamMb = 85
             ),
             AppItem(
                 packageName = "com.shopee.id",
                 appName = "Shopee",
-                versionName = "3.31.20",
+                versionName = "3.28.10",
                 isSystem = false,
-                permissions = listOf("android.permission.ACCESS_FINE_LOCATION", "android.permission.POST_NOTIFICATIONS"),
-                estimatedRamMb = 110
+                permissions = listOf("android.permission.ACCESS_COARSE_LOCATION"),
+                estimatedRamMb = 120
             ),
             AppItem(
                 packageName = "com.google.android.gm",
@@ -223,9 +354,10 @@ class CapsuleRepository(private val context: Context) {
         )
     }
 
-    suspend fun cloneAppToCapsule(app: AppItem, tag: String = "Dual Space") = withContext(Dispatchers.IO) {
+    suspend fun cloneAppToCapsule(app: AppItem, profileId: String, tag: String = "Dual Space") = withContext(Dispatchers.IO) {
         val entity = CapsuleAppEntity(
             packageName = app.packageName,
+            profileId = profileId,
             appName = app.appName,
             isCloned = true,
             isFrozen = false,
@@ -235,84 +367,110 @@ class CapsuleRepository(private val context: Context) {
             cloneTimestamp = System.currentTimeMillis()
         )
         dao.insertOrUpdateApp(entity)
+        val profile = dao.getProfileById(profileId)
         dao.insertLog(
             CapsuleLogEntity(
                 packageName = app.packageName,
                 appName = app.appName,
                 action = "CLONED",
-                details = "Aplikasi berhasil dikloning & diisolasi ke dalam Capsule Sandbox ($tag)"
+                details = "Aplikasi dikloning ke [${profile?.profileName ?: profileId}] ($tag)"
             )
         )
     }
 
-    suspend fun removeFromCapsule(packageName: String, appName: String) = withContext(Dispatchers.IO) {
-        dao.deleteApp(packageName)
+    suspend fun cloneAppToProfile(packageName: String, profileId: String, appName: String, tag: String = "Play Store Direct") = withContext(Dispatchers.IO) {
+        val entity = CapsuleAppEntity(
+            packageName = packageName,
+            profileId = profileId,
+            appName = appName,
+            isCloned = true,
+            isFrozen = false,
+            isAutoFreeze = false,
+            isolatedStorage = true,
+            tag = tag,
+            cloneTimestamp = System.currentTimeMillis()
+        )
+        dao.insertOrUpdateApp(entity)
+        val profile = dao.getProfileById(profileId)
+        dao.insertLog(
+            CapsuleLogEntity(
+                packageName = packageName,
+                appName = appName,
+                action = "PLAY_INSTALLED",
+                details = "Aplikasi $appName dipasang langsung ke [${profile?.profileName ?: profileId}]"
+            )
+        )
+    }
+
+    suspend fun removeFromCapsule(packageName: String, profileId: String, appName: String) = withContext(Dispatchers.IO) {
+        dao.deleteApp(packageName, profileId)
         dao.insertLog(
             CapsuleLogEntity(
                 packageName = packageName,
                 appName = appName,
                 action = "UNINSTALLED",
-                details = "Aplikasi dihapus dari Capsule Sandbox"
+                details = "Aplikasi dihapus dari profil $profileId"
             )
         )
     }
 
-    suspend fun freezeApp(packageName: String, appName: String) = withContext(Dispatchers.IO) {
-        // Kill background process
+    suspend fun freezeApp(packageName: String, profileId: String, appName: String) = withContext(Dispatchers.IO) {
         try {
             val am = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
             am?.killBackgroundProcesses(packageName)
         } catch (_: Exception) {}
 
-        dao.setFrozenStatus(packageName, true)
+        dao.setFrozenStatus(packageName, profileId, true)
         dao.insertLog(
             CapsuleLogEntity(
                 packageName = packageName,
                 appName = appName,
                 action = "FROZEN",
-                details = "Aplikasi dibekukan (Deep Hibernation). Proses latar belakang dihentikan."
+                details = "Aplikasi dibekukan di profil $profileId."
             )
         )
     }
 
-    suspend fun defrostApp(packageName: String, appName: String) = withContext(Dispatchers.IO) {
-        dao.setFrozenStatus(packageName, false)
+    suspend fun defrostApp(packageName: String, profileId: String, appName: String) = withContext(Dispatchers.IO) {
+        dao.setFrozenStatus(packageName, profileId, false)
         dao.insertLog(
             CapsuleLogEntity(
                 packageName = packageName,
                 appName = appName,
                 action = "DEFROSTED",
-                details = "Aplikasi dicairkan dan siap dijalankan."
+                details = "Aplikasi dicairkan di profil $profileId."
             )
         )
     }
 
-    suspend fun freezeAllCapsuleApps() = withContext(Dispatchers.IO) {
-        dao.freezeAllCapsuleApps()
+    suspend fun freezeAllCapsuleApps(profileId: String) = withContext(Dispatchers.IO) {
+        dao.freezeAllCapsuleApps(profileId)
+        val profile = dao.getProfileById(profileId)
         dao.insertLog(
             CapsuleLogEntity(
                 packageName = "GLOBAL",
-                appName = "Semua Aplikasi Kapsul",
+                appName = profile?.profileName ?: profileId,
                 action = "BATCH_FROZEN",
-                details = "1-Tap Glacier: Semua aplikasi dalam ruang isolasi telah dibekukan serentak."
+                details = "Semua aplikasi dalam profil [${profile?.profileName}] telah dibekukan serentak."
             )
         )
     }
 
-    suspend fun defrostAllCapsuleApps() = withContext(Dispatchers.IO) {
-        dao.defrostAllCapsuleApps()
+    suspend fun defrostAllCapsuleApps(profileId: String) = withContext(Dispatchers.IO) {
+        dao.defrostAllCapsuleApps(profileId)
+        val profile = dao.getProfileById(profileId)
         dao.insertLog(
             CapsuleLogEntity(
                 packageName = "GLOBAL",
-                appName = "Semua Aplikasi Kapsul",
+                appName = profile?.profileName ?: profileId,
                 action = "BATCH_DEFROSTED",
-                details = "Semua aplikasi dalam ruang isolasi telah dicairkan kembali."
+                details = "Semua aplikasi dalam profil [${profile?.profileName}] telah dicairkan kembali."
             )
         )
     }
 
-    suspend fun updateAutoFreeze(packageName: String, appName: String, isAutoFreeze: Boolean, delaySeconds: Int) = withContext(Dispatchers.IO) {
-        val existing = dao.getCapsuleApp(packageName)
+    suspend fun updateAutoFreeze(packageName: String, profileId: String, appName: String, isAutoFreeze: Boolean, delaySeconds: Int) = withContext(Dispatchers.IO) {
+        val existing = dao.getCapsuleApp(packageName, profileId)
         if (existing != null) {
             dao.updateApp(existing.copy(isAutoFreeze = isAutoFreeze, autoFreezeDelaySeconds = delaySeconds))
             dao.insertLog(
@@ -320,7 +478,7 @@ class CapsuleRepository(private val context: Context) {
                     packageName = packageName,
                     appName = appName,
                     action = "AUTO_FREEZE_CONFIG",
-                    details = "Auto-Freeze diatur: ${if (isAutoFreeze) "Aktif (${delaySeconds}s delay)" else "Nonaktif"}"
+                    details = "Auto-Freeze [Profil $profileId]: ${if (isAutoFreeze) "Aktif (${delaySeconds}s)" else "Nonaktif"}"
                 )
             )
         }
@@ -328,6 +486,7 @@ class CapsuleRepository(private val context: Context) {
 
     suspend fun updateAppOps(
         packageName: String,
+        profileId: String,
         appName: String,
         blockLocation: Boolean,
         blockContacts: Boolean,
@@ -335,7 +494,7 @@ class CapsuleRepository(private val context: Context) {
         blockBackgroundNetwork: Boolean,
         isolatedStorage: Boolean
     ) = withContext(Dispatchers.IO) {
-        val existing = dao.getCapsuleApp(packageName)
+        val existing = dao.getCapsuleApp(packageName, profileId)
         if (existing != null) {
             val updated = existing.copy(
                 blockLocation = blockLocation,
@@ -350,26 +509,25 @@ class CapsuleRepository(private val context: Context) {
                     packageName = packageName,
                     appName = appName,
                     action = "PRIVACY_GUARD",
-                    details = "Privacy Ops diperbarui: Lokasi=${!blockLocation}, Kontak=${!blockContacts}, Kamera=${!blockCamera}, Net=${!blockBackgroundNetwork}"
+                    details = "Privacy Ops diperbarui di profil $profileId."
                 )
             )
         }
     }
 
-    suspend fun launchApp(packageName: String, appName: String, inCapsule: Boolean): Boolean {
+    suspend fun launchApp(packageName: String, profileId: String, appName: String, inCapsule: Boolean): Boolean {
         return withContext(Dispatchers.Main) {
             try {
-                // If in capsule and frozen, unfreeze automatically on launch (just like Island)
                 if (inCapsule) {
                     withContext(Dispatchers.IO) {
-                        dao.setFrozenStatus(packageName, false)
-                        dao.recordLaunch(packageName)
+                        dao.setFrozenStatus(packageName, profileId, false)
+                        dao.recordLaunch(packageName, profileId)
                         dao.insertLog(
                             CapsuleLogEntity(
                                 packageName = packageName,
                                 appName = appName,
                                 action = "LAUNCH",
-                                details = "Diluncurkan dalam Ruang Isolasi Capsule (Otomatis Dicairkan)"
+                                details = "Diluncurkan dalam Ruang Isolasi [$profileId] (Otomatis Dicairkan)"
                             )
                         )
                     }
@@ -381,7 +539,6 @@ class CapsuleRepository(private val context: Context) {
                     context.startActivity(launchIntent)
                     true
                 } else {
-                    // Open App details in system settings as fallback
                     openAppSettings(packageName)
                     true
                 }
@@ -404,6 +561,347 @@ class CapsuleRepository(private val context: Context) {
         }
     }
 
+    // --- REAL-TIME SNAPSHOT & BACKUP SYSTEM ---
+
+    fun getSnapshotsForProfileFlow(profileId: String): Flow<List<CapsuleSnapshotEntity>> = dao.getSnapshotsForProfile(profileId)
+
+    suspend fun createAutoSnapshot(profileId: String, profileName: String, reason: String = "Auto-Snapshot Real-Time"): CapsuleSnapshotEntity = withContext(Dispatchers.IO) {
+        val apps = dao.getClonedCapsuleAppsList(profileId)
+        val jsonArray = JSONArray()
+        apps.forEach { app ->
+            val obj = JSONObject().apply {
+                put("packageName", app.packageName)
+                put("appName", app.appName)
+                put("isCloned", app.isCloned)
+                put("isFrozen", app.isFrozen)
+                put("isAutoFreeze", app.isAutoFreeze)
+                put("autoFreezeDelaySeconds", app.autoFreezeDelaySeconds)
+                put("isolatedStorage", app.isolatedStorage)
+                put("blockLocation", app.blockLocation)
+                put("blockContacts", app.blockContacts)
+                put("blockCamera", app.blockCamera)
+                put("blockBackgroundNetwork", app.blockBackgroundNetwork)
+                put("tag", app.tag)
+                put("customNote", app.customNote)
+                put("launchCount", app.launchCount)
+                put("frozenCount", app.frozenCount)
+            }
+            jsonArray.put(obj)
+        }
+
+        val sdf = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+        val timeStr = sdf.format(Date())
+        val snapshot = CapsuleSnapshotEntity(
+            snapshotId = "snap_" + UUID.randomUUID().toString().take(8),
+            profileId = profileId,
+            profileName = profileName,
+            timestamp = System.currentTimeMillis(),
+            label = "$reason ($timeStr)",
+            appCount = apps.size,
+            frozenCount = apps.count { it.isFrozen },
+            isAutoSnapshot = true,
+            appsJson = jsonArray.toString()
+        )
+        dao.insertSnapshot(snapshot)
+        snapshot
+    }
+
+    suspend fun createManualSnapshot(profileId: String, customLabel: String): CapsuleSnapshotEntity = withContext(Dispatchers.IO) {
+        val profile = dao.getProfileById(profileId)
+        val profileName = profile?.profileName ?: "Profil $profileId"
+        val apps = dao.getClonedCapsuleAppsList(profileId)
+        val jsonArray = JSONArray()
+        apps.forEach { app ->
+            val obj = JSONObject().apply {
+                put("packageName", app.packageName)
+                put("appName", app.appName)
+                put("isCloned", app.isCloned)
+                put("isFrozen", app.isFrozen)
+                put("isAutoFreeze", app.isAutoFreeze)
+                put("autoFreezeDelaySeconds", app.autoFreezeDelaySeconds)
+                put("isolatedStorage", app.isolatedStorage)
+                put("blockLocation", app.blockLocation)
+                put("blockContacts", app.blockContacts)
+                put("blockCamera", app.blockCamera)
+                put("blockBackgroundNetwork", app.blockBackgroundNetwork)
+                put("tag", app.tag)
+                put("customNote", app.customNote)
+                put("launchCount", app.launchCount)
+                put("frozenCount", app.frozenCount)
+            }
+            jsonArray.put(obj)
+        }
+
+        val snapshot = CapsuleSnapshotEntity(
+            snapshotId = "snap_" + UUID.randomUUID().toString().take(8),
+            profileId = profileId,
+            profileName = profileName,
+            timestamp = System.currentTimeMillis(),
+            label = customLabel.ifBlank { "Snapshot Manual" },
+            appCount = apps.size,
+            frozenCount = apps.count { it.isFrozen },
+            isAutoSnapshot = false,
+            appsJson = jsonArray.toString()
+        )
+        dao.insertSnapshot(snapshot)
+        dao.insertLog(
+            CapsuleLogEntity(
+                packageName = "SNAPSHOT",
+                appName = profileName,
+                action = "SNAPSHOT_CREATED",
+                details = "Snapshot '${snapshot.label}' berhasil dibuat (${snapshot.appCount} aplikasi)."
+            )
+        )
+        snapshot
+    }
+
+    suspend fun restoreSnapshot(snapshot: CapsuleSnapshotEntity): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val jsonArray = JSONArray(snapshot.appsJson)
+            val restoredApps = mutableListOf<CapsuleAppEntity>()
+            for (i in 0 until jsonArray.length()) {
+                val obj = jsonArray.getJSONObject(i)
+                restoredApps.add(
+                    CapsuleAppEntity(
+                        packageName = obj.getString("packageName"),
+                        profileId = snapshot.profileId,
+                        appName = obj.optString("appName", "App"),
+                        isCloned = obj.optBoolean("isCloned", true),
+                        isFrozen = obj.optBoolean("isFrozen", false),
+                        isAutoFreeze = obj.optBoolean("isAutoFreeze", false),
+                        autoFreezeDelaySeconds = obj.optInt("autoFreezeDelaySeconds", 15),
+                        isolatedStorage = obj.optBoolean("isolatedStorage", true),
+                        blockLocation = obj.optBoolean("blockLocation", false),
+                        blockContacts = obj.optBoolean("blockContacts", false),
+                        blockCamera = obj.optBoolean("blockCamera", false),
+                        blockBackgroundNetwork = obj.optBoolean("blockBackgroundNetwork", false),
+                        tag = obj.optString("tag", "Capsule"),
+                        customNote = obj.optString("customNote", ""),
+                        launchCount = obj.optInt("launchCount", 0),
+                        frozenCount = obj.optInt("frozenCount", 0),
+                        cloneTimestamp = System.currentTimeMillis()
+                    )
+                )
+            }
+
+            // Replace profile apps with restored snapshot state
+            dao.clearAppsForProfile(snapshot.profileId)
+            if (restoredApps.isNotEmpty()) {
+                dao.insertOrUpdateApps(restoredApps)
+            }
+
+            dao.insertLog(
+                CapsuleLogEntity(
+                    packageName = "RESTORE",
+                    appName = snapshot.profileName,
+                    action = "SNAPSHOT_RESTORED",
+                    details = "Data dipulihkan dari snapshot '${snapshot.label}' (${restoredApps.size} aplikasi)."
+                )
+            )
+            true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    suspend fun restoreLastSnapshot(profileId: String): Boolean = withContext(Dispatchers.IO) {
+        val latest = dao.getLatestSnapshot(profileId) ?: return@withContext false
+        restoreSnapshot(latest)
+    }
+
+    suspend fun deleteSnapshot(snapshotId: String) = withContext(Dispatchers.IO) {
+        dao.deleteSnapshot(snapshotId)
+    }
+
+    // --- FULL BACKUP EXPORT & IMPORT ---
+
+    suspend fun exportFullBackupJson(): String = withContext(Dispatchers.IO) {
+        val root = JSONObject()
+        root.put("version", 2)
+        root.put("appName", "CapsulePro")
+        root.put("exportTimestamp", System.currentTimeMillis())
+
+        val currentProfile = dao.getCurrentProfile()
+        root.put("currentProfileId", currentProfile?.profileId ?: "profile_1")
+
+        // Profiles array
+        val profilesArray = JSONArray()
+        // We query from DB via Flow collection or direct
+        val profiles = mutableListOf<CapsuleProfileEntity>()
+        // Let's get current profiles
+        currentProfile?.let { profiles.add(it) }
+        profiles.forEach { p ->
+            val pObj = JSONObject().apply {
+                put("profileId", p.profileId)
+                put("profileName", p.profileName)
+                put("colorHex", p.colorHex)
+                put("iconName", p.iconName)
+                put("autoSnapshotEnabled", p.autoSnapshotEnabled)
+            }
+            profilesArray.put(pObj)
+        }
+        root.put("profiles", profilesArray)
+
+        // All apps in current profile
+        val apps = currentProfile?.let { dao.getClonedCapsuleAppsList(it.profileId) } ?: emptyList()
+        val appsArray = JSONArray()
+        apps.forEach { app ->
+            val aObj = JSONObject().apply {
+                put("packageName", app.packageName)
+                put("appName", app.appName)
+                put("profileId", app.profileId)
+                put("isCloned", app.isCloned)
+                put("isFrozen", app.isFrozen)
+                put("isAutoFreeze", app.isAutoFreeze)
+                put("autoFreezeDelaySeconds", app.autoFreezeDelaySeconds)
+                put("isolatedStorage", app.isolatedStorage)
+                put("blockLocation", app.blockLocation)
+                put("blockContacts", app.blockContacts)
+                put("blockCamera", app.blockCamera)
+                put("blockBackgroundNetwork", app.blockBackgroundNetwork)
+                put("tag", app.tag)
+                put("customNote", app.customNote)
+            }
+            appsArray.put(aObj)
+        }
+        root.put("apps", appsArray)
+
+        root.toString(2)
+    }
+
+    suspend fun importFullBackupJson(jsonString: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val root = JSONObject(jsonString)
+            val appsArray = root.optJSONArray("apps") ?: return@withContext false
+
+            val currentProfile = getCurrentProfile()
+            val profileId = currentProfile.profileId
+
+            val restoredApps = mutableListOf<CapsuleAppEntity>()
+            for (i in 0 until appsArray.length()) {
+                val obj = appsArray.getJSONObject(i)
+                restoredApps.add(
+                    CapsuleAppEntity(
+                        packageName = obj.getString("packageName"),
+                        profileId = profileId,
+                        appName = obj.optString("appName", "App"),
+                        isCloned = obj.optBoolean("isCloned", true),
+                        isFrozen = obj.optBoolean("isFrozen", false),
+                        isAutoFreeze = obj.optBoolean("isAutoFreeze", false),
+                        autoFreezeDelaySeconds = obj.optInt("autoFreezeDelaySeconds", 15),
+                        isolatedStorage = obj.optBoolean("isolatedStorage", true),
+                        blockLocation = obj.optBoolean("blockLocation", false),
+                        blockContacts = obj.optBoolean("blockContacts", false),
+                        blockCamera = obj.optBoolean("blockCamera", false),
+                        blockBackgroundNetwork = obj.optBoolean("blockBackgroundNetwork", false),
+                        tag = obj.optString("tag", "Backup"),
+                        customNote = obj.optString("customNote", ""),
+                        cloneTimestamp = System.currentTimeMillis()
+                    )
+                )
+            }
+
+            if (restoredApps.isNotEmpty()) {
+                dao.insertOrUpdateApps(restoredApps)
+                // Save a snapshot of this import
+                createAutoSnapshot(profileId, currentProfile.profileName, "Snapshot Pemulihan Cadangan File")
+            }
+            true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    // --- IDENTITY / DEVICE SPOOFING ---
+    fun observeIdentityConfig(profileId: String): Flow<IdentityConfigEntity?> = dao.observeIdentityConfig(profileId)
+
+    suspend fun getIdentityConfig(profileId: String): IdentityConfigEntity = withContext(Dispatchers.IO) {
+        dao.getIdentityConfig(profileId) ?: run {
+            val fresh = DeviceIdentityGenerator.createFreshBlankIdentity(profileId)
+            dao.insertOrUpdateIdentityConfig(fresh)
+            fresh
+        }
+    }
+
+    suspend fun getAllIdentityConfigs(): List<IdentityConfigEntity> = withContext(Dispatchers.IO) {
+        dao.getAllIdentityConfigs()
+    }
+
+    suspend fun saveIdentityConfig(config: IdentityConfigEntity) = withContext(Dispatchers.IO) {
+        dao.insertOrUpdateIdentityConfig(config)
+        dao.insertLog(
+            CapsuleLogEntity(
+                packageName = "IDENTITY",
+                appName = config.brand + " " + config.model,
+                action = "IDENTITY_UPDATED",
+                details = "Identitas perangkat untuk profil '${config.profileId}' diperbarui (IMEI: ${config.imei1})."
+            )
+        )
+    }
+
+    suspend fun randomizeIdentityForProfile(profileId: String): IdentityConfigEntity = withContext(Dispatchers.IO) {
+        val randomized = DeviceIdentityGenerator.generateRandomizedIdentity(profileId)
+        dao.insertOrUpdateIdentityConfig(randomized)
+        dao.insertLog(
+            CapsuleLogEntity(
+                packageName = "IDENTITY",
+                appName = randomized.model,
+                action = "IDENTITY_RANDOMIZED",
+                details = "Identitas baru diacak untuk profil '$profileId': ${randomized.brand} ${randomized.model} (IMEI: ${randomized.imei1})."
+            )
+        )
+        randomized
+    }
+
+    // --- UNIVERSAL MIGRATION RESTORE ---
+    suspend fun restoreUniversalMigrationPackage(
+        data: MigrationParsedData,
+        isFullRootRestore: Boolean
+    ): Boolean = withContext(Dispatchers.IO) {
+        try {
+            // 1. Restore profiles
+            if (data.profiles.isNotEmpty()) {
+                dao.insertProfiles(data.profiles)
+            }
+
+            // 2. Restore apps
+            if (data.apps.isNotEmpty()) {
+                dao.insertOrUpdateApps(data.apps)
+            }
+
+            // 3. Restore snapshots
+            if (data.snapshots.isNotEmpty()) {
+                dao.insertSnapshots(data.snapshots)
+            }
+
+            // 4. Restore identity configs
+            data.identities.forEach { identity ->
+                dao.insertOrUpdateIdentityConfig(identity)
+            }
+
+            val modeStr = if (isFullRootRestore) "Full Root Data (Termasuk Sesi Akun)" else "Standar Universal"
+            dao.insertLog(
+                CapsuleLogEntity(
+                    packageName = "MIGRATION",
+                    appName = "Restore .capsule",
+                    action = "RESTORE_COMPLETE",
+                    details = "Pemulihan berhasil ($modeStr): ${data.profiles.size} profil, ${data.apps.size} aplikasi, ${data.identities.size} konfigurasi identitas."
+                )
+            )
+            true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    // --- LOGS ---
+    fun getAllCapsuleAppsFlow(): Flow<List<CapsuleAppEntity>> = dao.getAllCapsuleApps()
+    fun getAllIdentitiesFlow(): Flow<List<IdentityConfigEntity>> = dao.getAllIdentitiesFlow()
+    fun getAllSnapshotsFlow(): Flow<List<CapsuleSnapshotEntity>> = dao.getAllSnapshots()
+
     fun getLogsFlow(): Flow<List<CapsuleLogEntity>> = dao.getLogs()
 
     suspend fun clearLogs() = withContext(Dispatchers.IO) {
@@ -411,13 +909,15 @@ class CapsuleRepository(private val context: Context) {
     }
 
     suspend fun destroyCapsuleSpace() = withContext(Dispatchers.IO) {
-        dao.clearAllCapsuleApps()
+        val current = getCurrentProfile()
+        dao.clearAppsForProfile(current.profileId)
+        dao.clearSnapshotsForProfile(current.profileId)
         dao.insertLog(
             CapsuleLogEntity(
                 packageName = "SYSTEM",
-                appName = "Capsule Sandbox",
+                appName = current.profileName,
                 action = "DESTROYED",
-                details = "Ruang isolasi Capsule telah direset dan seluruh klon dibersihkan."
+                details = "Ruang isolasi profil '${current.profileName}' telah direset."
             )
         )
     }

@@ -15,7 +15,9 @@ import android.graphics.PixelFormat
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.text.InputType
 import android.util.TypedValue
 import android.view.Gravity
@@ -24,14 +26,14 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.EditText
 import android.widget.FrameLayout
-import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import com.example.MainActivity
-import com.example.R
+import com.example.util.AirplaneIpChanger
 import com.example.util.IndonesianNameGenerator
+import com.example.util.LanguageManager
 import kotlin.math.abs
 
 class FloatingAssistantService : Service() {
@@ -56,13 +58,19 @@ class FloatingAssistantService : Service() {
 
     // UI elements
     private var bubbleIcon: FrameLayout? = null
-    private var expandedCard: LinearLayout? = null
+    private var expandedUnifiedPanel: LinearLayout? = null
     private var nameTextView: TextView? = null
     private var passwordEditText: EditText? = null
+    private var ipStatusTextView: TextView? = null
+    private var ipTriggerButton: TextView? = null
+
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var isIpChanging = false
 
     override fun onCreate() {
         super.onCreate()
         isRunning = true
+        LanguageManager.init(this)
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, buildNotification())
         initFloatingWindow()
@@ -83,7 +91,7 @@ class FloatingAssistantService : Service() {
                 "Capsule Floating Assistant",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Layanan bubble melayang untuk nama & password cepat"
+                description = "Layanan bubble melayang untuk ID Assistant & Auto Ganti IP"
             }
             val manager = getSystemService(NotificationManager::class.java)
             manager?.createNotificationChannel(channel)
@@ -111,7 +119,7 @@ class FloatingAssistantService : Service() {
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Capsule Floating Assistant Aktif")
-            .setContentText("Ketuk bubble di layar untuk salin Nama Indo 2 Kata & Password")
+            .setContentText("Ketuk bubble di layar untuk ID & Ganti IP Pesawat (3s delay)")
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentIntent(appPendingIntent)
             .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Matikan Bubble", stopPendingIntent)
@@ -147,14 +155,15 @@ class FloatingAssistantService : Service() {
 
         floatingView = FrameLayout(this)
 
-        // 1. Build Floating Bubble Icon (Collapsed State)
+        // 1. Floating Bubble Icon (Collapsed State)
         bubbleIcon = createBubbleView()
         floatingView?.addView(bubbleIcon)
 
-        // 2. Build Expanded Floating Panel
-        expandedCard = createExpandedView()
-        expandedCard?.visibility = View.GONE
-        floatingView?.addView(expandedCard)
+        // 2. Expanded Unified Stack Panel (ATAS: Quick ID, BAWAH: Auto Ganti IP Mode Pesawat)
+        // STRICTLY LOCKED AS STACKED ATAS-BAWAH (UNIFIED & UNEDITABLE SEPARATION)
+        expandedUnifiedPanel = createExpandedUnifiedView()
+        expandedUnifiedPanel?.visibility = View.GONE
+        floatingView?.addView(expandedUnifiedPanel)
 
         // Touch Drag & Click Handling
         setupTouchListener()
@@ -175,7 +184,6 @@ class FloatingAssistantService : Service() {
             val size = dpToPx(56f)
             layoutParams = FrameLayout.LayoutParams(size, size)
 
-            // Cyber Cyan Glowing Circular Background
             background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
                 colors = intArrayOf(
@@ -188,9 +196,9 @@ class FloatingAssistantService : Service() {
         }
 
         val text = TextView(this).apply {
-            text = "⚡ID"
+            text = "⚡ID\n✈️IP"
             setTextColor(Color.parseColor("#090D16"))
-            textSize = 14f
+            textSize = 10f
             typeface = Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER
             layoutParams = FrameLayout.LayoutParams(
@@ -202,24 +210,31 @@ class FloatingAssistantService : Service() {
         return bubble
     }
 
-    private fun createExpandedView(): LinearLayout {
-        val container = LinearLayout(this).apply {
+    /**
+     * UNIFIED STACKED VIEW:
+     * TOP SECTION: Quick ID (Nama Indo 2 Kata & Password)
+     * BOTTOM SECTION: Auto IP Changer (Airplane Mode ON -> 3s Delay -> OFF)
+     * Permanently unified as top-bottom stack without separate draggable layers.
+     */
+    private fun createExpandedUnifiedView(): LinearLayout {
+        val rootContainer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            val width = dpToPx(300f)
+            val width = dpToPx(310f)
             layoutParams = FrameLayout.LayoutParams(width, FrameLayout.LayoutParams.WRAP_CONTENT)
-            setPadding(dpToPx(14f), dpToPx(14f), dpToPx(14f), dpToPx(14f))
+            setPadding(dpToPx(12f), dpToPx(12f), dpToPx(12f), dpToPx(12f))
 
-            // Dark Cyber Card Background
             background = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
                 cornerRadius = dpToPx(16f).toFloat()
-                setColor(Color.parseColor("#101726"))
+                setColor(Color.parseColor("#0D131F"))
                 setStroke(dpToPx(1.5f), Color.parseColor("#00E5FF"))
             }
-            elevation = 20f
+            elevation = 22f
         }
 
-        // Header Row: Title & Close / Minimize Buttons
+        // ==========================================
+        // 1. MASTER HEADER (Title & Minimize/Close)
+        // ==========================================
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -230,7 +245,7 @@ class FloatingAssistantService : Service() {
         }
 
         val title = TextView(this).apply {
-            text = "⚡ Capsule Quick ID"
+            text = "⚡ Capsule Floating ID & IP"
             setTextColor(Color.parseColor("#00E5FF"))
             textSize = 13f
             typeface = Typeface.DEFAULT_BOLD
@@ -238,7 +253,6 @@ class FloatingAssistantService : Service() {
         }
         header.addView(title)
 
-        // Minimize (-) Button
         val minimizeBtn = TextView(this).apply {
             text = " ─ "
             setTextColor(Color.parseColor("#B0BEC5"))
@@ -249,7 +263,6 @@ class FloatingAssistantService : Service() {
         }
         header.addView(minimizeBtn)
 
-        // Close (X) Button (Stops Service)
         val closeBtn = TextView(this).apply {
             text = " ✕ "
             setTextColor(Color.parseColor("#EF5350"))
@@ -260,159 +273,282 @@ class FloatingAssistantService : Service() {
         }
         header.addView(closeBtn)
 
-        container.addView(header)
-        addDivider(container, dpToPx(10f))
+        rootContainer.addView(header)
+        addDivider(rootContainer, dpToPx(8f), "#1E2C44")
 
-        // SECTION 1: NAMA INDONESIA (2 KATA)
+        // ==========================================
+        // 2. BAGIAN ATAS: FLOATING NAMA & PASSWORD
+        // ==========================================
+        val topSectionCard = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dpToPx(10f), dpToPx(10f), dpToPx(10f), dpToPx(10f))
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dpToPx(12f).toFloat()
+                setColor(Color.parseColor("#121B2B"))
+                setStroke(dpToPx(1f), Color.parseColor("#1F314D"))
+            }
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        }
+
+        // Section Title: NAMA INDONESIA (2 KATA)
         val nameLabel = TextView(this).apply {
             text = "NAMA INDONESIA (2 KATA)"
             setTextColor(Color.parseColor("#90CAF9"))
             textSize = 10f
             typeface = Typeface.DEFAULT_BOLD
         }
-        container.addView(nameLabel)
+        topSectionCard.addView(nameLabel)
 
-        // Name Box Display
+        // Name TextView Box
         nameTextView = TextView(this).apply {
             text = currentName
             setTextColor(Color.parseColor("#FFFFFF"))
-            textSize = 15f
+            textSize = 14f
             typeface = Typeface.DEFAULT_BOLD
-            setPadding(dpToPx(10f), dpToPx(8f), dpToPx(10f), dpToPx(8f))
+            setPadding(dpToPx(8f), dpToPx(6f), dpToPx(8f), dpToPx(6f))
             background = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
-                cornerRadius = dpToPx(8f).toFloat()
-                setColor(Color.parseColor("#182338"))
+                cornerRadius = dpToPx(6f).toFloat()
+                setColor(Color.parseColor("#18253A"))
                 setStroke(dpToPx(1f), Color.parseColor("#263859"))
             }
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
-                topMargin = dpToPx(4f)
-                bottomMargin = dpToPx(6f)
+                topMargin = dpToPx(3f)
+                bottomMargin = dpToPx(5f)
             }
         }
-        container.addView(nameTextView)
+        topSectionCard.addView(nameTextView)
 
-        // Name Action Buttons (Acak & Salin)
+        // Name Buttons (Acak & Salin)
         val nameButtonsRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                dpToPx(36f)
+                dpToPx(32f)
             )
         }
 
-        val randomizeNameBtn = createButton(
-            text = "🎲 Acak Nama",
-            bgColor = "#1A365D",
-            textColor = "#64B5F6",
-            isBold = true
-        ) {
+        val randomizeNameBtn = createButton("🎲 Acak Nama", "#1A365D", "#64B5F6", true) {
             currentName = IndonesianNameGenerator.generateTwoWordName()
             nameTextView?.text = currentName
         }
         randomizeNameBtn.layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f).apply {
-            marginEnd = dpToPx(4f)
+            marginEnd = dpToPx(3f)
         }
         nameButtonsRow.addView(randomizeNameBtn)
 
-        val copyNameBtn = createButton(
-            text = "📋 Salin Nama",
-            bgColor = "#00E5FF",
-            textColor = "#090D16",
-            isBold = true
-        ) {
+        val copyNameBtn = createButton("📋 Salin Nama", "#00E5FF", "#090D16", true) {
             copyToClipboard("Nama", currentName)
         }
         copyNameBtn.layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f).apply {
-            marginStart = dpToPx(4f)
+            marginStart = dpToPx(3f)
         }
         nameButtonsRow.addView(copyNameBtn)
+        topSectionCard.addView(nameButtonsRow)
 
-        container.addView(nameButtonsRow)
-        addDivider(container, dpToPx(12f))
+        // Divider inside Top Section
+        addDivider(topSectionCard, dpToPx(8f), "#1F314D")
 
-        // SECTION 2: PASSWORD
+        // Section Title: PASSWORD
         val passLabel = TextView(this).apply {
             text = "PASSWORD (BISA DIUBAH / SIMPAN)"
             setTextColor(Color.parseColor("#FFE082"))
             textSize = 10f
             typeface = Typeface.DEFAULT_BOLD
         }
-        container.addView(passLabel)
+        topSectionCard.addView(passLabel)
 
-        // Password Input / Display
+        // Password EditText
         passwordEditText = EditText(this).apply {
             setText(currentPassword)
             setTextColor(Color.parseColor("#00E676"))
-            textSize = 14f
+            textSize = 13f
             typeface = Typeface.MONOSPACE
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
-            setPadding(dpToPx(10f), dpToPx(8f), dpToPx(10f), dpToPx(8f))
+            setPadding(dpToPx(8f), dpToPx(6f), dpToPx(8f), dpToPx(6f))
             background = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
-                cornerRadius = dpToPx(8f).toFloat()
-                setColor(Color.parseColor("#182338"))
+                cornerRadius = dpToPx(6f).toFloat()
+                setColor(Color.parseColor("#18253A"))
                 setStroke(dpToPx(1f), Color.parseColor("#263859"))
             }
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
-                topMargin = dpToPx(4f)
-                bottomMargin = dpToPx(6f)
+                topMargin = dpToPx(3f)
+                bottomMargin = dpToPx(5f)
             }
-            setOnFocusChangeListener { _, hasFocus ->
-                updateFocusable(hasFocus)
-            }
+            setOnFocusChangeListener { _, hasFocus -> updateFocusable(hasFocus) }
         }
-        container.addView(passwordEditText)
+        topSectionCard.addView(passwordEditText)
 
-        // Password Action Buttons (Acak & Salin)
+        // Password Buttons (Acak & Salin)
         val passButtonsRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                dpToPx(36f)
+                dpToPx(32f)
             )
         }
 
-        val randomizePassBtn = createButton(
-            text = "🔑 Acak Baru",
-            bgColor = "#3E2723",
-            textColor = "#FFB74D",
-            isBold = true
-        ) {
+        val randomizePassBtn = createButton("🔑 Acak Kuat", "#3E2723", "#FFB74D", true) {
             currentPassword = IndonesianNameGenerator.generateRandomPassword(10)
             passwordEditText?.setText(currentPassword)
             IndonesianNameGenerator.saveCustomPassword(this, currentPassword)
         }
         randomizePassBtn.layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f).apply {
-            marginEnd = dpToPx(4f)
+            marginEnd = dpToPx(3f)
         }
         passButtonsRow.addView(randomizePassBtn)
 
-        val copyPassBtn = createButton(
-            text = "📋 Salin Password",
-            bgColor = "#00E676",
-            textColor = "#090D16",
-            isBold = true
-        ) {
+        val copyPassBtn = createButton("📋 Salin Password", "#00E676", "#090D16", true) {
             val pass = passwordEditText?.text?.toString() ?: currentPassword
             currentPassword = pass
             IndonesianNameGenerator.saveCustomPassword(this, pass)
             copyToClipboard("Password", pass)
         }
         copyPassBtn.layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f).apply {
-            marginStart = dpToPx(4f)
+            marginStart = dpToPx(3f)
         }
         passButtonsRow.addView(copyPassBtn)
+        topSectionCard.addView(passButtonsRow)
 
-        container.addView(passButtonsRow)
+        rootContainer.addView(topSectionCard)
 
-        return container
+        // Permanent Divider/Space Between Top (ID) and Bottom (Airplane IP)
+        val middleSpace = android.view.View(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dpToPx(8f)
+            )
+        }
+        rootContainer.addView(middleSpace)
+
+        // ==========================================
+        // 3. BAGIAN BAWAH: AUTO GANTI IP MODE PESAWAT
+        // (ON -> JEDA 3 DETIK -> OFF)
+        // ==========================================
+        val bottomSectionCard = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dpToPx(10f), dpToPx(10f), dpToPx(10f), dpToPx(10f))
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dpToPx(12f).toFloat()
+                setColor(Color.parseColor("#151D28"))
+                setStroke(dpToPx(1f), Color.parseColor("#0288D1").apply { })
+            }
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        }
+
+        // Section Title: AUTO GANTI IP
+        val ipHeaderRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        }
+
+        val ipLabel = TextView(this).apply {
+            text = "✈️ AUTO GANTI IP (MODE PESAWAT)"
+            setTextColor(Color.parseColor("#4FC3F7"))
+            textSize = 10f
+            typeface = Typeface.DEFAULT_BOLD
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        ipHeaderRow.addView(ipLabel)
+
+        val timerBadge = TextView(this).apply {
+            text = "3 Detik Jeda"
+            setTextColor(Color.parseColor("#00E5FF"))
+            textSize = 9f
+            typeface = Typeface.DEFAULT_BOLD
+            setPadding(dpToPx(6f), dpToPx(2f), dpToPx(6f), dpToPx(2f))
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dpToPx(4f).toFloat()
+                setColor(Color.parseColor("#00363A"))
+            }
+        }
+        ipHeaderRow.addView(timerBadge)
+        bottomSectionCard.addView(ipHeaderRow)
+
+        // Status description
+        ipStatusTextView = TextView(this).apply {
+            text = "Klik tombol di bawah: Mode pesawat ON -> Jeda 3 detik -> OFF untuk perbarui IP."
+            setTextColor(Color.parseColor("#B0BEC5"))
+            textSize = 10f
+            setPadding(0, dpToPx(4f), 0, dpToPx(6f))
+        }
+        bottomSectionCard.addView(ipStatusTextView)
+
+        // 1-Tap Trigger Button for 3-Second Airplane IP Cycle
+        ipTriggerButton = createButton(
+            text = "✈️ Ganti IP Sekarang (Mode Pesawat 3s)",
+            bgColor = "#0288D1",
+            textColor = "#FFFFFF",
+            isBold = true
+        ) {
+            triggerAirplaneCycle()
+        }.apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dpToPx(38f)
+            )
+        }
+        bottomSectionCard.addView(ipTriggerButton)
+
+        rootContainer.addView(bottomSectionCard)
+
+        return rootContainer
+    }
+
+    private fun triggerAirplaneCycle() {
+        if (isIpChanging) return
+        isIpChanging = true
+        ipTriggerButton?.apply {
+            text = "⏳ Memproses Ganti IP..."
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dpToPx(8f).toFloat()
+                setColor(Color.parseColor("#546E7A"))
+            }
+        }
+
+        AirplaneIpChanger.performAirplaneCycle(
+            context = this,
+            onProgress = { step, seconds ->
+                mainHandler.post {
+                    ipStatusTextView?.text = if (seconds > 0) "$step ($seconds detik)" else step
+                }
+            },
+            onComplete = {
+                mainHandler.post {
+                    isIpChanging = false
+                    ipStatusTextView?.text = "✓ IP Berhasil Diperbarui! Mode Pesawat kembali OFF."
+                    ipTriggerButton?.apply {
+                        text = "✈️ Ganti IP Lagi (3s)"
+                        background = GradientDrawable().apply {
+                            shape = GradientDrawable.RECTANGLE
+                            cornerRadius = dpToPx(8f).toFloat()
+                            setColor(Color.parseColor("#0288D1"))
+                        }
+                    }
+                }
+            }
+        )
     }
 
     private fun createButton(
@@ -430,16 +566,16 @@ class FloatingAssistantService : Service() {
             this.gravity = Gravity.CENTER
             this.background = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
-                cornerRadius = dpToPx(8f).toFloat()
+                cornerRadius = dpToPx(6f).toFloat()
                 setColor(Color.parseColor(bgColor))
             }
             this.setOnClickListener { onClick() }
         }
     }
 
-    private fun addDivider(parent: LinearLayout, marginVertical: Int) {
+    private fun addDivider(parent: LinearLayout, marginVertical: Int, hexColor: String = "#263859") {
         val divider = View(this).apply {
-            setBackgroundColor(Color.parseColor("#263859"))
+            setBackgroundColor(Color.parseColor(hexColor))
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 dpToPx(1f)
@@ -461,8 +597,7 @@ class FloatingAssistantService : Service() {
     private fun expandPanel() {
         isExpanded = true
         bubbleIcon?.visibility = View.GONE
-        expandedCard?.visibility = View.VISIBLE
-        // Update values
+        expandedUnifiedPanel?.visibility = View.VISIBLE
         currentPassword = IndonesianNameGenerator.getSavedPassword(this)
         passwordEditText?.setText(currentPassword)
     }
@@ -470,7 +605,7 @@ class FloatingAssistantService : Service() {
     private fun collapsePanel() {
         isExpanded = false
         updateFocusable(false)
-        expandedCard?.visibility = View.GONE
+        expandedUnifiedPanel?.visibility = View.GONE
         bubbleIcon?.visibility = View.VISIBLE
     }
 

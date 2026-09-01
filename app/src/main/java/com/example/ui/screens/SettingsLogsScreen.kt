@@ -1,7 +1,7 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,18 +19,16 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AcUnit
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteSweep
-import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.LockClock
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.PrivacyTip
-import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Warning
@@ -39,7 +37,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -51,12 +48,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.local.entity.CapsuleLogEntity
+import com.example.ui.WorkingEngineMode
 import com.example.ui.theme.AutoFreezeAmber
 import com.example.ui.theme.CapsuleCyan
 import com.example.ui.theme.CapsuleCyanLight
@@ -68,6 +69,9 @@ import com.example.ui.theme.GlacierBlue
 import com.example.ui.theme.SandboxGreen
 import com.example.ui.theme.TextPrimaryDark
 import com.example.ui.theme.TextSecondaryDark
+import com.example.util.AppLanguage
+import com.example.util.LanguageManager
+import com.example.util.RootStatus
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -75,11 +79,17 @@ import java.util.Locale
 @Composable
 fun SettingsLogsScreen(
     logs: List<CapsuleLogEntity>,
+    workingEngineMode: WorkingEngineMode,
+    rootStatus: RootStatus,
+    onSelectEngineMode: (WorkingEngineMode) -> Unit,
+    onOpenProfileBackup: () -> Unit = {},
     onClearLogs: () -> Unit,
     onDestroyCapsule: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     var showDestroyDialog by remember { mutableStateOf(false) }
+    val currentLang by LanguageManager.currentLanguage.collectAsStateWithLifecycle()
     val dateFormat = remember { SimpleDateFormat("HH:mm:ss", Locale.getDefault()) }
 
     LazyColumn(
@@ -95,7 +105,7 @@ fun SettingsLogsScreen(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = DarkSurfaceCard),
-                border = androidx.compose.foundation.BorderStroke(1.dp, DarkBorder)
+                border = BorderStroke(1.dp, DarkBorder)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -126,7 +136,7 @@ fun SettingsLogsScreen(
                                 color = TextPrimaryDark
                             )
                             Text(
-                                text = "v1.0.0 Pro Edition • Island Architecture",
+                                text = LanguageManager.getString("version_title"),
                                 fontSize = 11.sp,
                                 color = CapsuleCyan
                             )
@@ -136,7 +146,7 @@ fun SettingsLogsScreen(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     Text(
-                        text = "CapsulePro adalah utilitas sandboxing, kloning aplikasi akun ganda, dan pembekuan proses latar belakang (Glacier Freezer) yang terinspirasi penuh dari arsitektur aplikasi Island oleh Oasis Feng.",
+                        text = LanguageManager.getString("about_desc"),
                         fontSize = 11.sp,
                         color = TextSecondaryDark,
                         lineHeight = 15.sp
@@ -145,10 +155,12 @@ fun SettingsLogsScreen(
             }
         }
 
-        // Space Maintenance
+        // ==========================================
+        // SECTION: MULTI-PROFILE & SNAPSHOT BACKUP MANAGER
+        // ==========================================
         item {
             Text(
-                text = "MANAJEMEN RUANG ISOLASI",
+                text = "MANAJEMEN MULTI-PROFIL & CADANGAN DATA",
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 color = CapsuleCyan,
@@ -161,7 +173,267 @@ fun SettingsLogsScreen(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp),
                 colors = CardDefaults.cardColors(containerColor = DarkSurfaceCard),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFEF5350).copy(alpha = 0.3f))
+                border = BorderStroke(1.dp, DarkBorder)
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .background(CapsuleCyan.copy(alpha = 0.15f), RoundedCornerShape(8.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Tune,
+                                contentDescription = null,
+                                tint = CapsuleCyan,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = "Profil Sandbox & Titik Pemulihan",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimaryDark
+                            )
+                            Text(
+                                text = "Beralih profil isolasi, kelola auto-snapshot, dan ekspor full backup JSON.",
+                                fontSize = 11.sp,
+                                color = TextSecondaryDark
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Button(
+                        onClick = onOpenProfileBackup,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = CapsuleCyan)
+                    ) {
+                        Icon(Icons.Default.Tune, contentDescription = null, tint = Color.Black, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Buka Pengelola Profil & Snapshot", color = Color.Black, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+
+        // ==========================================
+        // SECTION 0: WORKING ENGINE MODE SELECTION (ROOT, SHIZUKU, DPM, SANDBOX)
+        // ==========================================
+        item {
+            Text(
+                text = LanguageManager.getString("sec_engine_mode"),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = CapsuleCyan,
+                letterSpacing = 0.5.sp
+            )
+        }
+
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = DarkSurfaceCard),
+                border = BorderStroke(1.dp, DarkBorder)
+            ) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    WorkingEngineMode.values().forEach { mode ->
+                        val isSelected = workingEngineMode == mode
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onSelectEngineMode(mode) },
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isSelected) CapsuleCyan.copy(alpha = 0.15f) else DarkSurfaceVariant,
+                            border = BorderStroke(
+                                1.2.dp,
+                                if (isSelected) CapsuleCyan else DarkBorder
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = if (isSelected) Icons.Default.CheckCircle else Icons.Default.Info,
+                                    contentDescription = null,
+                                    tint = if (isSelected) CapsuleCyan else TextSecondaryDark.copy(alpha = 0.5f),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column {
+                                    Text(
+                                        text = mode.title,
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (isSelected) CapsuleCyanLight else TextPrimaryDark
+                                    )
+                                    Text(
+                                        text = mode.description,
+                                        fontSize = 10.sp,
+                                        color = TextSecondaryDark
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ==========================================
+        // SECTION 1: LANGUAGE SETTINGS (ENGLISH & INDONESIA FULL)
+        // ==========================================
+        item {
+            Text(
+                text = LanguageManager.getString("section_language"),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = CapsuleCyan,
+                letterSpacing = 0.5.sp
+            )
+        }
+
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = DarkSurfaceCard),
+                border = BorderStroke(1.dp, DarkBorder)
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Language,
+                            contentDescription = null,
+                            tint = CapsuleCyan,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = LanguageManager.getString("language_title"),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimaryDark
+                            )
+                            Text(
+                                text = LanguageManager.getString("language_desc"),
+                                fontSize = 11.sp,
+                                color = TextSecondaryDark
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Language Switch Buttons
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Indonesian Option
+                        val isIdSelected = currentLang == AppLanguage.INDONESIAN
+                        Surface(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { LanguageManager.setLanguage(context, AppLanguage.INDONESIAN) },
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isIdSelected) CapsuleCyan.copy(alpha = 0.18f) else DarkSurfaceVariant,
+                            border = BorderStroke(
+                                1.5.dp,
+                                if (isIdSelected) CapsuleCyan else DarkBorder
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(vertical = 10.dp, horizontal = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                if (isIdSelected) {
+                                    Icon(
+                                        imageVector = Icons.Default.CheckCircle,
+                                        contentDescription = null,
+                                        tint = CapsuleCyan,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                }
+                                Text(
+                                    text = "🇮🇩 Indonesia",
+                                    fontSize = 12.sp,
+                                    fontWeight = if (isIdSelected) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isIdSelected) CapsuleCyanLight else TextSecondaryDark
+                                )
+                            }
+                        }
+
+                        // English Option
+                        val isEnSelected = currentLang == AppLanguage.ENGLISH
+                        Surface(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { LanguageManager.setLanguage(context, AppLanguage.ENGLISH) },
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isEnSelected) CapsuleCyan.copy(alpha = 0.18f) else DarkSurfaceVariant,
+                            border = BorderStroke(
+                                1.5.dp,
+                                if (isEnSelected) CapsuleCyan else DarkBorder
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(vertical = 10.dp, horizontal = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                if (isEnSelected) {
+                                    Icon(
+                                        imageVector = Icons.Default.CheckCircle,
+                                        contentDescription = null,
+                                        tint = CapsuleCyan,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                }
+                                Text(
+                                    text = "🇬🇧 English",
+                                    fontSize = 12.sp,
+                                    fontWeight = if (isEnSelected) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isEnSelected) CapsuleCyanLight else TextSecondaryDark
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Space Maintenance
+        item {
+            Text(
+                text = LanguageManager.getString("section_space_mgmt"),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = CapsuleCyan,
+                letterSpacing = 0.5.sp
+            )
+        }
+
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = DarkSurfaceCard),
+                border = BorderStroke(1.dp, Color(0xFFEF5350).copy(alpha = 0.3f))
             ) {
                 Column(modifier = Modifier.padding(14.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -174,13 +446,13 @@ fun SettingsLogsScreen(
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
-                                text = "Reset & Hancurkan Ruang Kapsul",
+                                text = LanguageManager.getString("reset_space_title"),
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = TextPrimaryDark
                             )
                             Text(
-                                text = "Hapus seluruh aplikasi yang telah dikloning dan pulihkan memori",
+                                text = LanguageManager.getString("reset_space_desc"),
                                 fontSize = 11.sp,
                                 color = TextSecondaryDark
                             )
@@ -207,7 +479,7 @@ fun SettingsLogsScreen(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "Reset Seluruh Ruang Kapsul",
+                            text = LanguageManager.getString("btn_reset_space"),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -224,7 +496,7 @@ fun SettingsLogsScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "LOG AUDIT AKTIVITAS PRIVASI (${logs.size})",
+                    text = "${LanguageManager.getString("section_audit_logs")} (${logs.size})",
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     color = TextSecondaryDark,
@@ -249,7 +521,7 @@ fun SettingsLogsScreen(
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = "Bersihkan",
+                                text = LanguageManager.getString("btn_clear_logs"),
                                 fontSize = 10.sp,
                                 color = TextSecondaryDark
                             )
@@ -265,7 +537,7 @@ fun SettingsLogsScreen(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
                     colors = CardDefaults.cardColors(containerColor = DarkSurfaceCard),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, DarkBorder)
+                    border = BorderStroke(1.dp, DarkBorder)
                 ) {
                     Box(
                         modifier = Modifier
@@ -274,7 +546,7 @@ fun SettingsLogsScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "Belum ada aktivitas audit tercatat.",
+                            text = LanguageManager.getString("empty_logs"),
                             fontSize = 12.sp,
                             color = TextSecondaryDark
                         )
@@ -297,7 +569,7 @@ fun SettingsLogsScreen(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(10.dp),
                     colors = CardDefaults.cardColors(containerColor = DarkSurfaceCard),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, DarkBorder)
+                    border = BorderStroke(1.dp, DarkBorder)
                 ) {
                     Row(
                         modifier = Modifier
@@ -367,7 +639,7 @@ fun SettingsLogsScreen(
             },
             title = {
                 Text(
-                    text = "Hancurkan Ruang Isolasi?",
+                    text = LanguageManager.getString("dialog_destroy_title"),
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
                     color = TextPrimaryDark
@@ -375,7 +647,7 @@ fun SettingsLogsScreen(
             },
             text = {
                 Text(
-                    text = "Tindakan ini akan menghapus seluruh data kloning di dalam Capsule Sandbox dan mencairkan semua proses. Anda yakin ingin melanjutkan?",
+                    text = LanguageManager.getString("dialog_destroy_desc"),
                     fontSize = 12.sp,
                     color = TextSecondaryDark
                 )
@@ -392,17 +664,17 @@ fun SettingsLogsScreen(
                     ),
                     shape = RoundedCornerShape(8.dp)
                 ) {
-                    Text("Ya, Hancurkan")
+                    Text(LanguageManager.getString("btn_confirm_destroy"))
                 }
             },
             dismissButton = {
                 OutlinedButton(
                     onClick = { showDestroyDialog = false },
                     shape = RoundedCornerShape(8.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, DarkBorder),
+                    border = BorderStroke(1.dp, DarkBorder),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = TextSecondaryDark)
                 ) {
-                    Text("Batal")
+                    Text(LanguageManager.getString("btn_cancel"))
                 }
             }
         )

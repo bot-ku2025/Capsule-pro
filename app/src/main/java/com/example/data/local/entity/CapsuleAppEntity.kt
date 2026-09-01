@@ -3,10 +3,13 @@ package com.example.data.local.entity
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "capsule_apps")
+@Entity(
+    tableName = "capsule_apps",
+    primaryKeys = ["packageName", "profileId"]
+)
 data class CapsuleAppEntity(
-    @PrimaryKey
     val packageName: String,
+    val profileId: String = "profile_1",
     val appName: String,
     val isCloned: Boolean = true,
     val isFrozen: Boolean = false,

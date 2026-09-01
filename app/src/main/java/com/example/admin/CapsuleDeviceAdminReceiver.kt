@@ -7,7 +7,7 @@ import android.widget.Toast
 
 /**
  * DeviceAdminReceiver for CapsulePro to manage Android Work Profile / Managed Profile
- * and Device Owner policies, replicating Island by Oasis Feng.
+ * and Device Owner policies.
  */
 class CapsuleDeviceAdminReceiver : DeviceAdminReceiver() {
 
