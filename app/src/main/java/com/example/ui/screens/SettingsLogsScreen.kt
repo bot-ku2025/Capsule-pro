@@ -83,6 +83,7 @@ fun SettingsLogsScreen(
     rootStatus: RootStatus,
     onSelectEngineMode: (WorkingEngineMode) -> Unit,
     onOpenProfileBackup: () -> Unit = {},
+    onOpenSetupWizard: () -> Unit = {},
     onClearLogs: () -> Unit,
     onDestroyCapsule: () -> Unit,
     modifier: Modifier = Modifier
@@ -151,6 +152,73 @@ fun SettingsLogsScreen(
                         color = TextSecondaryDark,
                         lineHeight = 15.sp
                     )
+                }
+            }
+        }
+
+        // ==========================================
+        // SECTION: ISLAND & WORK PROFILE SETUP WIZARD
+        // ==========================================
+        item {
+            Text(
+                text = "STATUS RUANG ISOLASI & WORK PROFILE",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = CapsuleCyan,
+                letterSpacing = 0.5.sp
+            )
+        }
+
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = DarkSurfaceCard),
+                border = BorderStroke(1.dp, SandboxGreen.copy(alpha = 0.4f))
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .background(SandboxGreen.copy(alpha = 0.15f), RoundedCornerShape(8.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Shield,
+                                contentDescription = null,
+                                tint = SandboxGreen,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = "Setup Wizard Ruang Isolasi",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimaryDark
+                            )
+                            Text(
+                                text = "Konfigurasi ulang alur Android Enterprise, Device Owner, atau Superuser Sandbox.",
+                                fontSize = 11.sp,
+                                color = TextSecondaryDark
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Button(
+                        onClick = onOpenSetupWizard,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = SandboxGreen, contentColor = Color(0xFF042014))
+                    ) {
+                        Icon(Icons.Default.Shield, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Buka Island Setup Wizard", fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }

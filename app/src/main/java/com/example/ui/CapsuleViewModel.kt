@@ -99,6 +99,35 @@ class CapsuleViewModel(application: Application) : AndroidViewModel(application)
     private val _workingEngineMode = MutableStateFlow(WorkingEngineMode.SANDBOX)
     val workingEngineMode: StateFlow<WorkingEngineMode> = _workingEngineMode.asStateFlow()
 
+    // SharedPreferences for Island Setup Wizard & State
+    private val sharedPrefs = application.getSharedPreferences("capsule_settings_prefs", android.content.Context.MODE_PRIVATE)
+
+    private val _isSetupWizardCompleted = MutableStateFlow(sharedPrefs.getBoolean("key_setup_wizard_completed", false))
+    val isSetupWizardCompleted: StateFlow<Boolean> = _isSetupWizardCompleted.asStateFlow()
+
+    private val _isIslandPaused = MutableStateFlow(sharedPrefs.getBoolean("key_island_paused", false))
+    val isIslandPaused: StateFlow<Boolean> = _isIslandPaused.asStateFlow()
+
+    fun completeSetupWizard() {
+        sharedPrefs.edit().putBoolean("key_setup_wizard_completed", true).apply()
+        _isSetupWizardCompleted.value = true
+        showToast("✓ Selamat datang di Capsule Pro (Ruang Isolasi Aktif)!")
+    }
+
+    fun reopenSetupWizard() {
+        _isSetupWizardCompleted.value = false
+    }
+
+    fun toggleIslandPause(paused: Boolean) {
+        _isIslandPaused.value = paused
+        sharedPrefs.edit().putBoolean("key_island_paused", paused).apply()
+        if (paused) {
+            showToast("⏸️ Ruang Isolasi (Island) dijeda - semua proses latar belakang dimatikan")
+        } else {
+            showToast("▶️ Ruang Isolasi (Island) diaktifkan kembali")
+        }
+    }
+
     // Profiles
     val allProfiles: StateFlow<List<CapsuleProfileEntity>> = repository.getAllProfilesFlow()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())

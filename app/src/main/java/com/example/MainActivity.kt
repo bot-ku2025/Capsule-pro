@@ -40,6 +40,7 @@ import com.example.ui.components.UniversalMigrationDialog
 import com.example.ui.screens.CapsuleScreen
 import com.example.ui.screens.GlacierScreen
 import com.example.ui.screens.IdentityScreen
+import com.example.ui.screens.IslandSetupWizardScreen
 import com.example.ui.screens.MainlandScreen
 import com.example.ui.screens.SettingsLogsScreen
 import com.example.ui.screens.ShuttleAdbScreen
@@ -66,6 +67,8 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun CapsuleProApp(viewModel: CapsuleViewModel) {
     val context = LocalContext.current
+    val isSetupWizardCompleted by viewModel.isSetupWizardCompleted.collectAsStateWithLifecycle()
+    val isIslandPaused by viewModel.isIslandPaused.collectAsStateWithLifecycle()
     val currentTab by viewModel.currentTab.collectAsStateWithLifecycle()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val mainlandFilter by viewModel.mainlandFilter.collectAsStateWithLifecycle()
@@ -110,126 +113,146 @@ fun CapsuleProApp(viewModel: CapsuleViewModel) {
         }
     }
 
-    Scaffold(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(DarkCanvas)
-            .windowInsetsPadding(WindowInsets.safeDrawing),
-        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
-        topBar = {
-            CapsuleHeader(
-                searchQuery = searchQuery,
-                onSearchQueryChange = { viewModel.updateSearchQuery(it) },
-                totalCloned = capsuleApps.size,
-                totalFrozen = frozenCount,
-                savedRamMb = savedRamTotalMb,
-                currentProfile = currentProfile,
-                onOpenProfileDialog = { showProfileBackupDialog = true },
-                onOpenFloatingAssistant = { showFloatingDialog = true },
-                onOpenPlayEngine = { showPlayEngineSheet = true },
-                onOpenUniversalMigration = { showUniversalMigrationDialog = true }
-            )
-        },
-        bottomBar = {
-            CapsuleNavigationBar(
-                currentTab = currentTab,
-                onTabSelected = { viewModel.selectTab(it) },
-                clonedCount = capsuleApps.size,
-                frozenCount = frozenCount
-            )
-        },
-        containerColor = DarkCanvas
-    ) { innerPadding ->
+    if (!isSetupWizardCompleted) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
+                .background(DarkCanvas)
+                .windowInsetsPadding(WindowInsets.safeDrawing)
         ) {
-            when (currentTab) {
-                CapsuleTab.MAINLAND -> {
-                    MainlandScreen(
-                        apps = filteredMainlandApps,
-                        currentFilter = mainlandFilter,
-                        onFilterSelect = { viewModel.setMainlandFilter(it) },
-                        onAppClick = { viewModel.selectAppForDetail(it) },
-                        onCloneClick = { viewModel.cloneToCapsule(it) },
-                        onLaunchClick = { viewModel.launchApp(it, inCapsule = false) }
-                    )
-                }
+            IslandSetupWizardScreen(
+                rootStatus = rootStatus,
+                onRequestRootAccess = { viewModel.requestRootAccess() },
+                onSetupWorkProfileViaRoot = { viewModel.setupWorkProfileViaRoot() },
+                onCompleteSetup = { viewModel.completeSetupWizard() },
+                canDismiss = false
+            )
+        }
+    } else {
+        Scaffold(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(DarkCanvas)
+                .windowInsetsPadding(WindowInsets.safeDrawing),
+            snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+            topBar = {
+                CapsuleHeader(
+                    searchQuery = searchQuery,
+                    onSearchQueryChange = { viewModel.updateSearchQuery(it) },
+                    totalCloned = capsuleApps.size,
+                    totalFrozen = frozenCount,
+                    savedRamMb = savedRamTotalMb,
+                    currentProfile = currentProfile,
+                    onOpenProfileDialog = { showProfileBackupDialog = true },
+                    onOpenFloatingAssistant = { showFloatingDialog = true },
+                    onOpenPlayEngine = { showPlayEngineSheet = true },
+                    onOpenUniversalMigration = { showUniversalMigrationDialog = true }
+                )
+            },
+            bottomBar = {
+                CapsuleNavigationBar(
+                    currentTab = currentTab,
+                    onTabSelected = { viewModel.selectTab(it) },
+                    clonedCount = capsuleApps.size,
+                    frozenCount = frozenCount
+                )
+            },
+            containerColor = DarkCanvas
+        ) { innerPadding ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+            ) {
+                when (currentTab) {
+                    CapsuleTab.MAINLAND -> {
+                        MainlandScreen(
+                            apps = filteredMainlandApps,
+                            currentFilter = mainlandFilter,
+                            onFilterSelect = { viewModel.setMainlandFilter(it) },
+                            onAppClick = { viewModel.selectAppForDetail(it) },
+                            onCloneClick = { viewModel.cloneToCapsule(it) },
+                            onLaunchClick = { viewModel.launchApp(it, inCapsule = false) }
+                        )
+                    }
 
-                CapsuleTab.CAPSULE -> {
-                    CapsuleScreen(
-                        apps = filteredCapsuleApps,
-                        currentFilter = capsuleFilter,
-                        onFilterSelect = { viewModel.setCapsuleFilter(it) },
-                        onAppClick = { viewModel.selectAppForDetail(it) },
-                        onLaunchClick = { viewModel.launchApp(it, inCapsule = true) },
-                        onFreezeToggle = { app ->
-                            if (app.isFrozen) viewModel.defrostApp(app) else viewModel.freezeApp(app)
-                        },
-                        onOpsClick = { viewModel.selectAppForOps(it) },
-                        onFreezeAll = { viewModel.freezeAllInactive() },
-                        onDefrostAll = { viewModel.defrostAll() },
-                        onOpenTools = { showFloatingDialog = true },
-                        onNavigateToMainland = { viewModel.selectTab(CapsuleTab.MAINLAND) }
-                    )
-                }
+                    CapsuleTab.CAPSULE -> {
+                        CapsuleScreen(
+                            apps = filteredCapsuleApps,
+                            currentFilter = capsuleFilter,
+                            isIslandPaused = isIslandPaused,
+                            onToggleIslandPause = { viewModel.toggleIslandPause(it) },
+                            onFilterSelect = { viewModel.setCapsuleFilter(it) },
+                            onAppClick = { viewModel.selectAppForDetail(it) },
+                            onLaunchClick = { viewModel.launchApp(it, inCapsule = true) },
+                            onFreezeToggle = { app ->
+                                if (app.isFrozen) viewModel.defrostApp(app) else viewModel.freezeApp(app)
+                            },
+                            onOpsClick = { viewModel.selectAppForOps(it) },
+                            onFreezeAll = { viewModel.freezeAllInactive() },
+                            onDefrostAll = { viewModel.defrostAll() },
+                            onOpenTools = { showFloatingDialog = true },
+                            onNavigateToMainland = { viewModel.selectTab(CapsuleTab.MAINLAND) }
+                        )
+                    }
 
-                CapsuleTab.IDENTITY -> {
-                    IdentityScreen(
-                        currentProfile = currentProfile,
-                        allProfiles = allProfiles,
-                        identityConfig = identityConfig,
-                        rootStatus = rootStatus,
-                        isExecutingAction = isExecutingAction,
-                        actionStatusMessage = actionStatusMessage,
-                        onSelectProfile = { viewModel.switchProfile(it) },
-                        onRandomizeIdentity = { viewModel.randomizeCurrentProfileIdentity() },
-                        onApplyPreset = { preset -> viewModel.applyDevicePreset(preset) },
-                        onUpdateField = { updated -> viewModel.updateIdentityConfig(updated) },
-                        onSynchronizeSystem = { viewModel.synchronizeSystem() },
-                        onRestartProfileWithIpCycle = { viewModel.restartProfileWithIpCycle() },
-                        onRequestRootAccess = { viewModel.requestRootAccess() }
-                    )
-                }
+                    CapsuleTab.IDENTITY -> {
+                        IdentityScreen(
+                            currentProfile = currentProfile,
+                            allProfiles = allProfiles,
+                            identityConfig = identityConfig,
+                            rootStatus = rootStatus,
+                            isExecutingAction = isExecutingAction,
+                            actionStatusMessage = actionStatusMessage,
+                            onSelectProfile = { viewModel.switchProfile(it) },
+                            onRandomizeIdentity = { viewModel.randomizeCurrentProfileIdentity() },
+                            onApplyPreset = { preset -> viewModel.applyDevicePreset(preset) },
+                            onUpdateField = { updated -> viewModel.updateIdentityConfig(updated) },
+                            onSynchronizeSystem = { viewModel.synchronizeSystem() },
+                            onRestartProfileWithIpCycle = { viewModel.restartProfileWithIpCycle() },
+                            onRequestRootAccess = { viewModel.requestRootAccess() }
+                        )
+                    }
 
-                CapsuleTab.GLACIER -> {
-                    GlacierScreen(
-                        capsuleApps = capsuleApps,
-                        frozenCount = frozenCount,
-                        savedRamMb = savedRamTotalMb,
-                        screenOffAutoFreeze = screenOffAutoFreeze,
-                        onToggleScreenOffFreeze = { viewModel.toggleScreenOffAutoFreeze() },
-                        onFreezeAll = { viewModel.freezeAllInactive() },
-                        onDefrostAll = { viewModel.defrostAll() },
-                        onFreezeApp = { viewModel.freezeApp(it) },
-                        onDefrostApp = { viewModel.defrostApp(it) },
-                        onAppClick = { viewModel.selectAppForDetail(it) }
-                    )
-                }
+                    CapsuleTab.GLACIER -> {
+                        GlacierScreen(
+                            capsuleApps = capsuleApps,
+                            frozenCount = frozenCount,
+                            savedRamMb = savedRamTotalMb,
+                            screenOffAutoFreeze = screenOffAutoFreeze,
+                            onToggleScreenOffFreeze = { viewModel.toggleScreenOffAutoFreeze() },
+                            onFreezeAll = { viewModel.freezeAllInactive() },
+                            onDefrostAll = { viewModel.defrostAll() },
+                            onFreezeApp = { viewModel.freezeApp(it) },
+                            onDefrostApp = { viewModel.defrostApp(it) },
+                            onAppClick = { viewModel.selectAppForDetail(it) }
+                        )
+                    }
 
-                CapsuleTab.SHUTTLE_ADB -> {
-                    ShuttleAdbScreen(
-                        rootStatus = rootStatus,
-                        workingEngineMode = workingEngineMode,
-                        onRequestRoot = { viewModel.requestRootAccess() },
-                        onSetupWorkProfileRoot = { viewModel.setupWorkProfileViaRoot() },
-                        onTestRoot = { viewModel.testRootCommand() },
-                        onSelectEngineMode = { viewModel.setEngineMode(it) },
-                        onShowToast = { viewModel.showToast(it) }
-                    )
-                }
+                    CapsuleTab.SHUTTLE_ADB -> {
+                        ShuttleAdbScreen(
+                            rootStatus = rootStatus,
+                            workingEngineMode = workingEngineMode,
+                            onRequestRoot = { viewModel.requestRootAccess() },
+                            onSetupWorkProfileRoot = { viewModel.setupWorkProfileViaRoot() },
+                            onTestRoot = { viewModel.testRootCommand() },
+                            onSelectEngineMode = { viewModel.setEngineMode(it) },
+                            onShowToast = { viewModel.showToast(it) }
+                        )
+                    }
 
-                CapsuleTab.SETTINGS_LOGS -> {
-                    SettingsLogsScreen(
-                        logs = logs,
-                        workingEngineMode = workingEngineMode,
-                        rootStatus = rootStatus,
-                        onSelectEngineMode = { viewModel.setEngineMode(it) },
-                        onOpenProfileBackup = { showProfileBackupDialog = true },
-                        onClearLogs = { viewModel.clearLogs() },
-                        onDestroyCapsule = { viewModel.destroyCapsule() }
-                    )
+                    CapsuleTab.SETTINGS_LOGS -> {
+                        SettingsLogsScreen(
+                            logs = logs,
+                            workingEngineMode = workingEngineMode,
+                            rootStatus = rootStatus,
+                            onSelectEngineMode = { viewModel.setEngineMode(it) },
+                            onOpenProfileBackup = { showProfileBackupDialog = true },
+                            onOpenSetupWizard = { viewModel.reopenSetupWizard() },
+                            onClearLogs = { viewModel.clearLogs() },
+                            onDestroyCapsule = { viewModel.destroyCapsule() }
+                        )
+                    }
                 }
             }
         }

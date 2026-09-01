@@ -20,9 +20,10 @@ val GlacierBlue = Color(0xFF80D8FF)
 val GlacierBlueDark = Color(0xFF0091EA)
 val GlacierBlueContainer = Color(0xFF0D47A1)
 
-// Warning / Auto-Freeze Amber
+// Warning / Auto-Freeze Amber & Orange
 val AutoFreezeAmber = Color(0xFFFFD54F)
 val AutoFreezeAmberDark = Color(0xFFFF8F00)
+val WarningOrange = Color(0xFFFF9800)
 
 // Background & Surface Navy Midnight
 val DarkCanvas = Color(0xFF090D16)

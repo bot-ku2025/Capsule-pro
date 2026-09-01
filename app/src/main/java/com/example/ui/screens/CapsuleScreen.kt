@@ -24,6 +24,10 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.PauseCircle
+import androidx.compose.material.icons.filled.PlayCircle
+import androidx.compose.material.icons.filled.Work
+import androidx.compose.material.icons.filled.WorkOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -32,6 +36,8 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -57,12 +63,15 @@ import com.example.ui.theme.GlacierBlueContainer
 import com.example.ui.theme.SandboxGreen
 import com.example.ui.theme.TextPrimaryDark
 import com.example.ui.theme.TextSecondaryDark
+import com.example.ui.theme.WarningOrange
 import com.example.util.LanguageManager
 
 @Composable
 fun CapsuleScreen(
     apps: List<AppItem>,
     currentFilter: CapsuleFilter,
+    isIslandPaused: Boolean = false,
+    onToggleIslandPause: (Boolean) -> Unit = {},
     onFilterSelect: (CapsuleFilter) -> Unit,
     onAppClick: (AppItem) -> Unit,
     onLaunchClick: (AppItem) -> Unit,
@@ -81,6 +90,62 @@ fun CapsuleScreen(
             .fillMaxSize()
             .background(DarkCanvas)
     ) {
+        // Global Island Quiet Mode / Active Banner
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 4.dp),
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = if (isIslandPaused) WarningOrange.copy(alpha = 0.12f) else DarkSurfaceCard
+            ),
+            border = BorderStroke(
+                1.dp,
+                if (isIslandPaused) WarningOrange.copy(alpha = 0.5f) else DarkBorder
+            )
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                    Icon(
+                        imageVector = if (isIslandPaused) Icons.Default.WorkOff else Icons.Default.Work,
+                        contentDescription = null,
+                        tint = if (isIslandPaused) WarningOrange else CapsuleCyan,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column {
+                        Text(
+                            text = if (isIslandPaused) "Island Dijeda (Quiet Mode)" else "Island Ruang Kerja Aktif",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isIslandPaused) WarningOrange else TextPrimaryDark
+                        )
+                        Text(
+                            text = if (isIslandPaused) "Seluruh background service klon dihentikan" else "0% RAM & CPU overhead bawaan Android Enterprise",
+                            fontSize = 9.5.sp,
+                            color = TextSecondaryDark
+                        )
+                    }
+                }
+
+                Switch(
+                    checked = !isIslandPaused,
+                    onCheckedChange = { onToggleIslandPause(!it) },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Color(0xFF090D16),
+                        checkedTrackColor = CapsuleCyan,
+                        uncheckedThumbColor = WarningOrange,
+                        uncheckedTrackColor = DarkCanvas
+                    )
+                )
+            }
+        }
         // Quick Action Bar (Freeze All / Defrost All / Tools ID & IP)
         Row(
             modifier = Modifier
