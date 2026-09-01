@@ -158,6 +158,31 @@ object RootEngine {
         res.success
     }
 
+    suspend fun applyFullIdentitySpoofing(
+        userId: Int,
+        brand: String,
+        model: String,
+        manufacturer: String,
+        productDevice: String,
+        fingerprint: String,
+        androidId: String,
+        bluetoothName: String
+    ): RootCommandResult = withContext(Dispatchers.IO) {
+        val script = """
+            setprop ro.product.brand "$brand"
+            setprop ro.product.model "$model"
+            setprop ro.product.manufacturer "$manufacturer"
+            setprop ro.product.device "$productDevice"
+            setprop ro.build.fingerprint "$fingerprint"
+            settings put --user $userId secure android_id "$androidId"
+            settings put secure android_id "$androidId"
+            settings put global device_name "$bluetoothName"
+            settings put secure bluetooth_name "$bluetoothName"
+            echo "IDENTITY_SPOOF_APPLIED=1"
+        """.trimIndent()
+        execute(script)
+    }
+
     suspend fun spoofPlayStoreInstaller(packageName: String, installer: String = "com.android.vending"): Boolean = withContext(Dispatchers.IO) {
         val cmd = "pm set-installer $packageName $installer || cmd package set-installer-package $packageName $installer"
         val res = execute(cmd)

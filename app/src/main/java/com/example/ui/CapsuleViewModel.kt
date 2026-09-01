@@ -544,10 +544,17 @@ class CapsuleViewModel(application: Application) : AndroidViewModel(application)
             // 1. Sync identity system properties via root if available
             val config = repository.getIdentityConfig(profile.profileId)
             if (isRoot) {
-                RootEngine.executeRoot("setprop ro.product.brand \"${config.brand}\"")
-                RootEngine.executeRoot("setprop ro.product.model \"${config.model}\"")
-                RootEngine.executeRoot("setprop ro.product.device \"${config.productDevice}\"")
-                RootEngine.executeRoot("setprop ro.build.fingerprint \"${config.fingerprint}\"")
+                val userId = profile.profileId.filter { it.isDigit() }.toIntOrNull() ?: 10
+                RootEngine.applyFullIdentitySpoofing(
+                    userId = userId,
+                    brand = config.brand,
+                    model = config.model,
+                    manufacturer = config.manufacturer,
+                    productDevice = config.productDevice,
+                    fingerprint = config.fingerprint,
+                    androidId = config.androidId,
+                    bluetoothName = config.bluetoothName
+                )
             }
 
             // 2. Cycle Airplane mode (2.0s on, 2.5s off) to acquire fresh dynamic IP

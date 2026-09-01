@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AcUnit
@@ -35,6 +37,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -76,7 +79,7 @@ fun CapsuleHeader(
                     )
                 )
             )
-            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .padding(horizontal = 14.dp, vertical = 8.dp)
     ) {
         // App Title & Profile Switcher Row
         Row(
@@ -84,11 +87,14 @@ fun CapsuleHeader(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f, fill = false)
+            ) {
                 Box(
                     modifier = Modifier
-                        .size(38.dp)
-                        .clip(RoundedCornerShape(10.dp))
+                        .size(34.dp)
+                        .clip(RoundedCornerShape(8.dp))
                         .background(
                             Brush.linearGradient(
                                 colors = listOf(CapsuleCyan, Color(0xFF00838F))
@@ -100,94 +106,105 @@ fun CapsuleHeader(
                         imageVector = Icons.Default.Shield,
                         contentDescription = "Capsule Icon",
                         tint = Color(0xFF090D16),
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier.size(20.dp)
                     )
                 }
 
-                Spacer(modifier = Modifier.width(10.dp))
+                Spacer(modifier = Modifier.width(8.dp))
 
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = "Capsule",
-                            fontSize = 20.sp,
+                            fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
                             color = TextPrimaryDark
                         )
                         Text(
                             text = "Pro",
-                            fontSize = 20.sp,
+                            fontSize = 16.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = CapsuleCyan
                         )
                     }
                     Text(
-                        text = LanguageManager.getString("app_subtitle"),
-                        fontSize = 10.sp,
-                        color = TextSecondaryDark
+                        text = "Sandbox & Dual-Space",
+                        fontSize = 9.sp,
+                        color = TextSecondaryDark,
+                        lineHeight = 11.sp
                     )
                 }
             }
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                // Play Engine Pill
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                // Play Engine Pill Button
                 Surface(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(16.dp))
+                        .clip(RoundedCornerShape(12.dp))
                         .clickable(onClick = onOpenPlayEngine),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(12.dp),
                     color = DarkSurfaceCard,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, SandboxGreen.copy(alpha = 0.4f))
+                    border = androidx.compose.foundation.BorderStroke(1.dp, SandboxGreen.copy(alpha = 0.5f))
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 5.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(text = "🛍️ Play", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = SandboxGreen)
+                        Text(
+                            text = "🛍️ Play",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = SandboxGreen
+                        )
                     }
                 }
 
-                Spacer(modifier = Modifier.width(6.dp))
-
-                // Active Profile Pill / Switcher Button
+                // Active Profile Dropdown Switcher Button
                 Surface(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(20.dp))
+                        .clip(RoundedCornerShape(12.dp))
                         .clickable(onClick = onOpenProfileDialog),
-                    shape = RoundedCornerShape(20.dp),
+                    shape = RoundedCornerShape(12.dp),
                     color = DarkSurfaceCard,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, profileColor.copy(alpha = 0.5f))
+                    border = androidx.compose.foundation.BorderStroke(1.dp, profileColor.copy(alpha = 0.6f))
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        modifier = Modifier
+                            .padding(horizontal = 8.dp, vertical = 5.dp)
+                            .widthIn(max = 130.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(10.dp)
-                                .clip(RoundedCornerShape(5.dp))
+                                .size(8.dp)
+                                .clip(CircleShape)
                                 .background(profileColor)
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Spacer(modifier = Modifier.width(5.dp))
                         Text(
                             text = currentProfile?.profileName ?: "Profil 1",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimaryDark
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = TextPrimaryDark,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                         Spacer(modifier = Modifier.width(2.dp))
                         Icon(
                             imageVector = Icons.Default.ArrowDropDown,
                             contentDescription = "Switch Profile",
                             tint = profileColor,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(16.dp)
                         )
                     }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         // Search Bar
         OutlinedTextField(
@@ -195,34 +212,39 @@ fun CapsuleHeader(
             onValueChange = onSearchQueryChange,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(52.dp),
+                .height(46.dp),
             placeholder = {
                 Text(
                     text = LanguageManager.getString("search_placeholder"),
                     color = TextSecondaryDark,
-                    fontSize = 14.sp
+                    fontSize = 12.sp
                 )
             },
             leadingIcon = {
                 Icon(
                     imageVector = Icons.Default.Search,
                     contentDescription = "Search",
-                    tint = CapsuleCyan
+                    tint = CapsuleCyan,
+                    modifier = Modifier.size(18.dp)
                 )
             },
             trailingIcon = {
                 if (searchQuery.isNotBlank()) {
-                    IconButton(onClick = { onSearchQueryChange("") }) {
+                    IconButton(
+                        onClick = { onSearchQueryChange("") },
+                        modifier = Modifier.size(24.dp)
+                    ) {
                         Icon(
                             imageVector = Icons.Default.Clear,
                             contentDescription = "Clear",
-                            tint = TextSecondaryDark
+                            tint = TextSecondaryDark,
+                            modifier = Modifier.size(16.dp)
                         )
                     }
                 }
             },
             singleLine = true,
-            shape = RoundedCornerShape(14.dp),
+            shape = RoundedCornerShape(12.dp),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedContainerColor = DarkSurfaceCard,
                 unfocusedContainerColor = DarkSurfaceCard,
@@ -234,12 +256,12 @@ fun CapsuleHeader(
             )
         )
 
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
-        // Quick Stats Row
+        // Quick Stats Row (Responsive 3-column layout)
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             // Cloned Stat Chip
             StatBadge(
@@ -265,7 +287,7 @@ fun CapsuleHeader(
                 label = LanguageManager.getString("stat_saved_ram"),
                 value = "${savedRamMb}MB",
                 color = SandboxGreen,
-                modifier = Modifier.weight(1.2f)
+                modifier = Modifier.weight(1f)
             )
         }
     }
@@ -281,12 +303,12 @@ private fun StatBadge(
 ) {
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(10.dp),
+        shape = RoundedCornerShape(8.dp),
         color = DarkSurfaceCard,
-        border = androidx.compose.foundation.BorderStroke(1.dp, color.copy(alpha = 0.25f))
+        border = androidx.compose.foundation.BorderStroke(1.dp, color.copy(alpha = 0.3f))
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 5.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
@@ -294,22 +316,24 @@ private fun StatBadge(
                 imageVector = icon,
                 contentDescription = null,
                 tint = color,
-                modifier = Modifier.size(14.dp)
+                modifier = Modifier.size(13.dp)
             )
-            Spacer(modifier = Modifier.width(5.dp))
+            Spacer(modifier = Modifier.width(4.dp))
             Column {
                 Text(
                     text = label,
                     fontSize = 9.sp,
                     color = TextSecondaryDark,
-                    lineHeight = 10.sp
+                    lineHeight = 10.sp,
+                    maxLines = 1
                 )
                 Text(
                     text = value,
-                    fontSize = 12.sp,
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     color = color,
-                    lineHeight = 13.sp
+                    lineHeight = 12.sp,
+                    maxLines = 1
                 )
             }
         }

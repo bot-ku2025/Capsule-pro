@@ -28,6 +28,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -54,7 +55,7 @@ fun CapsuleNavigationBar(
             .background(DarkCanvas)
             .windowInsetsPadding(WindowInsets.navigationBars),
         containerColor = DarkSurface,
-        tonalElevation = 6.dp
+        tonalElevation = 4.dp
     ) {
         // Mainland Tab
         NavigationBarItem(
@@ -64,13 +65,16 @@ fun CapsuleNavigationBar(
                 Icon(
                     imageVector = if (currentTab == CapsuleTab.MAINLAND) Icons.Filled.Apps else Icons.Outlined.Apps,
                     contentDescription = "Mainland",
-                    modifier = Modifier.size(22.dp)
+                    modifier = Modifier.size(20.dp)
                 )
             },
             label = {
                 Text(
                     text = LanguageManager.getString("tab_mainland"),
-                    fontSize = 11.sp,
+                    fontSize = 10.sp,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis,
                     fontWeight = if (currentTab == CapsuleTab.MAINLAND) FontWeight.Bold else FontWeight.Normal
                 )
             },
@@ -91,13 +95,16 @@ fun CapsuleNavigationBar(
                 Icon(
                     imageVector = if (currentTab == CapsuleTab.CAPSULE) Icons.Filled.Security else Icons.Outlined.Security,
                     contentDescription = "Capsule",
-                    modifier = Modifier.size(22.dp)
+                    modifier = Modifier.size(20.dp)
                 )
             },
             label = {
                 Text(
-                    text = "${LanguageManager.getString("tab_capsule")} ($clonedCount)",
-                    fontSize = 11.sp,
+                    text = "${LanguageManager.getString("tab_capsule")}($clonedCount)",
+                    fontSize = 10.sp,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis,
                     fontWeight = if (currentTab == CapsuleTab.CAPSULE) FontWeight.Bold else FontWeight.Normal
                 )
             },
@@ -118,13 +125,16 @@ fun CapsuleNavigationBar(
                 Icon(
                     imageVector = if (currentTab == CapsuleTab.IDENTITY) Icons.Filled.Fingerprint else Icons.Outlined.Fingerprint,
                     contentDescription = "Identity",
-                    modifier = Modifier.size(22.dp)
+                    modifier = Modifier.size(20.dp)
                 )
             },
             label = {
                 Text(
                     text = LanguageManager.getString("tab_identity"),
-                    fontSize = 11.sp,
+                    fontSize = 10.sp,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis,
                     fontWeight = if (currentTab == CapsuleTab.IDENTITY) FontWeight.Bold else FontWeight.Normal
                 )
             },
@@ -144,14 +154,17 @@ fun CapsuleNavigationBar(
             icon = {
                 Icon(
                     imageVector = if (currentTab == CapsuleTab.GLACIER) Icons.Filled.AcUnit else Icons.Outlined.AcUnit,
-                    contentDescription = "Glacier Freezer",
-                    modifier = Modifier.size(22.dp)
+                    contentDescription = "Glacier",
+                    modifier = Modifier.size(20.dp)
                 )
             },
             label = {
                 Text(
-                    text = "${LanguageManager.getString("tab_glacier")} ($frozenCount)",
-                    fontSize = 11.sp,
+                    text = "${LanguageManager.getString("tab_glacier")}($frozenCount)",
+                    fontSize = 10.sp,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis,
                     fontWeight = if (currentTab == CapsuleTab.GLACIER) FontWeight.Bold else FontWeight.Normal
                 )
             },
@@ -171,14 +184,17 @@ fun CapsuleNavigationBar(
             icon = {
                 Icon(
                     imageVector = if (currentTab == CapsuleTab.SHUTTLE_ADB) Icons.Filled.Terminal else Icons.Outlined.Terminal,
-                    contentDescription = "Shuttle & ADB",
-                    modifier = Modifier.size(22.dp)
+                    contentDescription = "Bridge",
+                    modifier = Modifier.size(20.dp)
                 )
             },
             label = {
                 Text(
                     text = LanguageManager.getString("tab_bridge"),
-                    fontSize = 11.sp,
+                    fontSize = 10.sp,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis,
                     fontWeight = if (currentTab == CapsuleTab.SHUTTLE_ADB) FontWeight.Bold else FontWeight.Normal
                 )
             },
@@ -199,13 +215,16 @@ fun CapsuleNavigationBar(
                 Icon(
                     imageVector = if (currentTab == CapsuleTab.SETTINGS_LOGS) Icons.Filled.Settings else Icons.Outlined.Settings,
                     contentDescription = "Settings",
-                    modifier = Modifier.size(22.dp)
+                    modifier = Modifier.size(20.dp)
                 )
             },
             label = {
                 Text(
                     text = LanguageManager.getString("tab_settings"),
-                    fontSize = 11.sp,
+                    fontSize = 10.sp,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis,
                     fontWeight = if (currentTab == CapsuleTab.SETTINGS_LOGS) FontWeight.Bold else FontWeight.Normal
                 )
             },

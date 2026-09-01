@@ -71,35 +71,7 @@ object DeviceIdentityGenerator {
     )
 
     fun createFreshBlankIdentity(profileId: String): IdentityConfigEntity {
-        return IdentityConfigEntity(
-            profileId = profileId,
-            brand = "-",
-            model = "-",
-            androidVersion = "Android",
-            codename = "-",
-            boardPlatform = "-",
-            manufacturer = "-",
-            productDevice = "-",
-            androidId = "-",
-            imei1 = "-",
-            imei2 = "-",
-            serialNumber = "-",
-            fingerprint = "-",
-            gsfId = "-",
-            wifiMac = "-",
-            wifiSsid = "-",
-            wifiBssid = "-",
-            bluetoothMac = "-",
-            bluetoothName = "Capsule Device",
-            advertisingId = "-",
-            appSetId = "-",
-            widevineDrmId = "-",
-            userAgent = "Mozilla/5.0 (Linux; Android)",
-            installerPackage = "com.android.vending",
-            hiddenKeyboardPackages = "-",
-            virtualDefaultIme = "-",
-            isFresh = true
-        )
+        return generateRandomizedIdentity(profileId, PRESETS.first())
     }
 
     fun generateRandomizedIdentity(profileId: String, preset: DevicePreset? = null): IdentityConfigEntity {

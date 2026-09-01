@@ -44,10 +44,10 @@ object LanguageManager {
         // Tabs
         "tab_mainland" to "Mainland",
         "tab_capsule" to "Capsule",
-        "tab_identity" to "Identity",
+        "tab_identity" to "Identitas",
         "tab_glacier" to "Glacier",
         "tab_bridge" to "Bridge",
-        "tab_settings" to "Pengaturan",
+        "tab_settings" to "Setelan",
 
         // Header & Search
         "search_placeholder" to "Cari aplikasi atau paket...",
@@ -56,6 +56,16 @@ object LanguageManager {
         "stat_saved_ram" to "Hemat RAM",
         "quick_id" to "Quick ID",
         "app_subtitle" to "Android Dual-Space & Sandbox Engine",
+        "version_title" to "v2.5.0 (Enterprise Sandbox Engine)",
+
+        // Work Profile Setup / Isolation Concept
+        "work_profile_status_active" to "✓ Ruang Isolasi Aktif",
+        "work_profile_status_inactive" to "Ruang Isolasi Belum Aktif",
+        "work_profile_setup_title" to "Aktivasi Profil Kerja & Ruang Isolasi",
+        "work_profile_setup_desc" to "Aktifkan Work Profile (Android Enterprise) atau Superuser Sandbox untuk mengisolasi data, akun ganda, dan anti-deteksi.",
+        "btn_setup_work_profile_dpm" to "🏢 Setup Android Enterprise (Resmi)",
+        "btn_setup_work_profile_root" to "⚡ 1-Klik Setup via Root Superuser",
+        "btn_continue_software_sandbox" to "🛡️ Buka Software Sandbox Mode",
 
         // Mainland Screen
         "filter_all" to "Semua",
@@ -202,6 +212,16 @@ object LanguageManager {
         "stat_saved_ram" to "Saved RAM",
         "quick_id" to "Quick ID",
         "app_subtitle" to "Android Dual-Space & Sandbox Engine",
+        "version_title" to "v2.5.0 (Enterprise Sandbox Engine)",
+
+        // Work Profile Setup / Isolation Concept
+        "work_profile_status_active" to "✓ Isolation Space Active",
+        "work_profile_status_inactive" to "Isolation Space Inactive",
+        "work_profile_setup_title" to "Work Profile & Isolation Setup",
+        "work_profile_setup_desc" to "Activate Android Enterprise Work Profile or Root Privileged Sandbox for dual accounts and anti-detection.",
+        "btn_setup_work_profile_dpm" to "🏢 Setup Android Enterprise (Official)",
+        "btn_setup_work_profile_root" to "⚡ 1-Click Setup via Root Superuser",
+        "btn_continue_software_sandbox" to "🛡️ Open Software Sandbox Mode",
 
         // Mainland Screen
         "filter_all" to "All",

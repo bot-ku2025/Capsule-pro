@@ -1,6 +1,5 @@
 package com.example.ui.components
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -17,11 +16,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Search
@@ -32,7 +31,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -92,7 +92,18 @@ fun PlayEngineDialog(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     var searchQuery by remember { mutableStateOf("") }
-    val appsList = remember(searchQuery) { PlayBackendEngine.searchPlayApps(searchQuery) }
+    var selectedCategory by remember { mutableStateOf("Semua") }
+
+    val categories = listOf("Semua", "Finansial / Perbankan", "Belanja / E-Commerce", "Komunikasi", "Sosial & Media", "Game", "Hiburan & Streaming")
+
+    val baseList = remember(searchQuery) { PlayBackendEngine.searchPlayApps(searchQuery) }
+    val appsList = remember(baseList, selectedCategory) {
+        if (selectedCategory == "Semua") {
+            baseList
+        } else {
+            baseList.filter { it.category.contains(selectedCategory, ignoreCase = true) }
+        }
+    }
 
     var installingAppPackage by remember { mutableStateOf<String?>(null) }
     var installProgress by remember { mutableIntStateOf(0) }
@@ -107,15 +118,15 @@ fun PlayEngineDialog(
         Surface(
             modifier = Modifier
                 .fillMaxWidth(0.95f)
-                .fillMaxHeight(0.88f)
-                .clip(RoundedCornerShape(24.dp))
-                .border(1.dp, DarkBorder, RoundedCornerShape(24.dp)),
+                .fillMaxHeight(0.90f)
+                .clip(RoundedCornerShape(20.dp))
+                .border(1.dp, DarkBorder, RoundedCornerShape(20.dp)),
             color = DarkCanvas
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(20.dp)
+                    .padding(16.dp)
             ) {
                 // Header
                 Row(
@@ -126,7 +137,7 @@ fun PlayEngineDialog(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
                             modifier = Modifier
-                                .size(40.dp)
+                                .size(36.dp)
                                 .clip(CircleShape)
                                 .background(CapsuleCyan.copy(alpha = 0.15f))
                                 .border(1.dp, CapsuleCyan, CircleShape),
@@ -136,28 +147,29 @@ fun PlayEngineDialog(
                                 imageVector = Icons.Default.Shield,
                                 contentDescription = "Play Engine",
                                 tint = CapsuleCyan,
-                                modifier = Modifier.size(22.dp)
+                                modifier = Modifier.size(20.dp)
                             )
                         }
-                        Spacer(modifier = Modifier.width(12.dp))
+                        Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
                                 text = "Play Backend Engine",
                                 color = TextPrimaryDark,
-                                fontSize = 16.sp,
+                                fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "Unduh APK Resmi • Bypass Play Integrity",
+                                text = "Pencarian Play Store • Bypass Status Installer",
                                 color = CapsuleCyan,
-                                fontSize = 12.sp
+                                fontSize = 11.sp
                             )
                         }
                     }
 
                     IconButton(
                         onClick = onDismiss,
-                        enabled = installingAppPackage == null
+                        enabled = installingAppPackage == null,
+                        modifier = Modifier.size(32.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Close,
@@ -167,25 +179,27 @@ fun PlayEngineDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 // Search Bar
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("Cari Shopee, Netflix, Banking, dsb...", fontSize = 13.sp, color = TextSecondaryDark) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    placeholder = { Text("Cari BCA, Shopee, Mobile Legends, WhatsApp...", fontSize = 12.sp, color = TextSecondaryDark) },
                     leadingIcon = {
-                        Icon(Icons.Default.Search, contentDescription = null, tint = CapsuleCyan)
+                        Icon(Icons.Default.Search, contentDescription = null, tint = CapsuleCyan, modifier = Modifier.size(18.dp))
                     },
                     trailingIcon = {
                         if (searchQuery.isNotEmpty()) {
                             IconButton(onClick = { searchQuery = "" }) {
-                                Icon(Icons.Default.Close, contentDescription = null, tint = TextSecondaryDark, modifier = Modifier.size(18.dp))
+                                Icon(Icons.Default.Close, contentDescription = null, tint = TextSecondaryDark, modifier = Modifier.size(16.dp))
                             }
                         }
                     },
-                    shape = RoundedCornerShape(14.dp),
+                    shape = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = CapsuleCyan,
                         unfocusedBorderColor = DarkBorder,
@@ -197,48 +211,77 @@ fun PlayEngineDialog(
                     singleLine = true
                 )
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Categories Quick Chips
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    items(categories) { cat ->
+                        FilterChip(
+                            selected = selectedCategory == cat,
+                            onClick = { selectedCategory = cat },
+                            label = { Text(cat.substringBefore(" /"), fontSize = 10.sp) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = CapsuleCyan,
+                                selectedLabelColor = Color(0xFF090D16),
+                                containerColor = DarkSurfaceCard,
+                                labelColor = TextSecondaryDark
+                            ),
+                            border = FilterChipDefaults.filterChipBorder(
+                                enabled = true,
+                                selected = selectedCategory == cat,
+                                borderColor = DarkBorder,
+                                selectedBorderColor = CapsuleCyan
+                            )
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
 
                 // Active Profile Target Info
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(10.dp),
                     colors = CardDefaults.cardColors(containerColor = DarkSurfaceCard),
                     border = CardDefaults.outlinedCardBorder()
                 ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            text = "Target Sandbox: ${currentProfile?.profileName ?: "Profil Utama"}",
+                            text = "Target Sandbox: ${currentProfile?.profileName ?: "Profil 1"}",
                             color = TextSecondaryDark,
-                            fontSize = 12.sp
+                            fontSize = 11.sp
                         )
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Verified, contentDescription = null, tint = SandboxGreen, modifier = Modifier.size(14.dp))
+                            Icon(Icons.Default.Verified, contentDescription = null, tint = SandboxGreen, modifier = Modifier.size(13.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text(text = "CDN Google Asli", color = SandboxGreen, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Text(text = "Play Store Verified", color = SandboxGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
                 // Installing progress state
                 installingAppPackage?.let { pkg ->
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(bottom = 12.dp),
-                        shape = RoundedCornerShape(14.dp),
+                            .padding(bottom = 8.dp),
+                        shape = RoundedCornerShape(12.dp),
                         colors = CardDefaults.cardColors(containerColor = Color(0xFF0F232B)),
                         border = CardDefaults.outlinedCardBorder()
                     ) {
-                        Column(modifier = Modifier.padding(14.dp)) {
+                        Column(modifier = Modifier.padding(12.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -247,17 +290,17 @@ fun PlayEngineDialog(
                                 Text(
                                     text = installStatusText,
                                     color = CapsuleCyan,
-                                    fontSize = 12.sp,
+                                    fontSize = 11.sp,
                                     fontWeight = FontWeight.Medium
                                 )
                                 Text(
                                     text = "$installProgress%",
                                     color = TextPrimaryDark,
-                                    fontSize = 12.sp,
+                                    fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(6.dp))
                             LinearProgressIndicator(
                                 progress = { installProgress / 100f },
                                 modifier = Modifier.fillMaxWidth(),
@@ -271,67 +314,67 @@ fun PlayEngineDialog(
                 // Apps List
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(appsList, key = { it.packageName }) { app ->
                         val isInstallingThis = installingAppPackage == app.packageName
                         Card(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(16.dp),
+                            shape = RoundedCornerShape(14.dp),
                             colors = CardDefaults.cardColors(containerColor = DarkSurfaceCard),
                             border = CardDefaults.outlinedCardBorder()
                         ) {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(14.dp),
+                                    .padding(10.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Box(
                                     modifier = Modifier
-                                        .size(46.dp)
-                                        .clip(RoundedCornerShape(12.dp))
+                                        .size(42.dp)
+                                        .clip(RoundedCornerShape(10.dp))
                                         .background(DarkSurface),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
                                         text = app.iconEmoji,
-                                        fontSize = 24.sp
+                                        fontSize = 20.sp
                                     )
                                 }
 
-                                Spacer(modifier = Modifier.width(12.dp))
+                                Spacer(modifier = Modifier.width(10.dp))
 
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         text = app.appName,
                                         color = TextPrimaryDark,
-                                        fontSize = 14.sp,
+                                        fontSize = 13.sp,
                                         fontWeight = FontWeight.Bold
                                     )
                                     Text(
                                         text = "${app.developer} • ${app.sizeMb}",
                                         color = TextSecondaryDark,
-                                        fontSize = 11.sp
+                                        fontSize = 10.sp
                                     )
-                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Spacer(modifier = Modifier.height(2.dp))
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Text(
                                             text = app.version,
                                             color = CapsuleCyan,
-                                            fontSize = 10.sp,
+                                            fontSize = 9.sp,
                                             fontWeight = FontWeight.SemiBold
                                         )
-                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
                                         Text(
                                             text = "• ${app.architecture}",
                                             color = TextSecondaryDark,
-                                            fontSize = 10.sp
+                                            fontSize = 9.sp
                                         )
                                     }
                                 }
 
-                                Spacer(modifier = Modifier.width(8.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
 
                                 Button(
                                     onClick = {
@@ -352,19 +395,20 @@ fun PlayEngineDialog(
                                         }
                                     },
                                     enabled = installingAppPackage == null,
-                                    shape = RoundedCornerShape(10.dp),
+                                    shape = RoundedCornerShape(8.dp),
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = SandboxGreen,
                                         contentColor = Color(0xFF042014)
                                     ),
                                     contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                                        horizontal = 10.dp,
-                                        vertical = 6.dp
-                                    )
+                                        horizontal = 8.dp,
+                                        vertical = 4.dp
+                                    ),
+                                    modifier = Modifier.height(34.dp)
                                 ) {
                                     if (isInstallingThis) {
                                         CircularProgressIndicator(
-                                            modifier = Modifier.size(16.dp),
+                                            modifier = Modifier.size(14.dp),
                                             color = Color(0xFF042014),
                                             strokeWidth = 2.dp
                                         )
@@ -372,9 +416,9 @@ fun PlayEngineDialog(
                                         Icon(
                                             imageVector = Icons.Default.Download,
                                             contentDescription = "Install",
-                                            modifier = Modifier.size(16.dp)
+                                            modifier = Modifier.size(14.dp)
                                         )
-                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Spacer(modifier = Modifier.width(3.dp))
                                         Text(
                                             text = "Pasang",
                                             fontSize = 11.sp,
